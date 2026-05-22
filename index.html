@@ -4,18 +4,23 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VMLI Idiomas</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
   <!-- ============ LOGIN ============ -->
   <div id="login-screen">
-    <div class="login-bg"></div>
     <div class="login-card">
       <div class="login-logo">
-        <div class="login-logo-mark">VMLI</div>
-        <div class="login-logo-sub">Sistema de Gestão</div>
+        <!-- Logo da VMLI — suba o arquivo como "logo.png" no repo -->
+        <img src="logo.png" alt="VMLI" class="login-logo-img"
+             onerror="this.style.display='none'; document.getElementById('logo-fallback').style.display='flex'">
+        <div id="logo-fallback" class="login-logo-fallback" style="display:none">
+          <div class="login-logo-mark">VMLI</div>
+          <div class="login-logo-sub">BE BOLD, BE GREAT</div>
+        </div>
+        <div class="login-tagline">Sistema de Gestão</div>
       </div>
       <form id="login-form">
         <div class="form-group">
@@ -34,16 +39,19 @@
 
   <!-- ============ APP ============ -->
   <div id="app">
-
-    <!-- Sidebar overlay (mobile) -->
     <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-    <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
-        <div class="sidebar-logo">
-          <span class="slogo-main">VMLI</span>
-          <span class="slogo-sub">Idiomas</span>
+        <!-- Logo na sidebar — mesmo arquivo logo.png -->
+        <img src="logo.png" alt="VMLI" class="sidebar-logo-img"
+             onerror="this.style.display='none'; document.getElementById('sidebar-logo-fallback').style.display='flex'">
+        <div id="sidebar-logo-fallback" class="sidebar-logo-fallback" style="display:none">
+          <div class="slogo-icon">VM</div>
+          <div class="slogo-text">
+            <span class="slogo-main">VMLI</span>
+            <span class="slogo-sub">Idiomas</span>
+          </div>
         </div>
         <button class="sidebar-close" id="sidebar-close">✕</button>
       </div>
@@ -54,7 +62,6 @@
       </div>
     </aside>
 
-    <!-- Main area -->
     <div class="main-wrapper">
       <header class="topbar">
         <button class="menu-btn" id="menu-btn">☰</button>
@@ -67,7 +74,6 @@
         <div class="loading"><div class="spinner"></div></div>
       </main>
     </div>
-
   </div>
 
   <!-- ============ MODAL ============ -->

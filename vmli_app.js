@@ -5,8 +5,8 @@
 // ============================================================
 // 1. CONFIG — troque pelas suas credenciais Supabase
 // ============================================================
-const SUPABASE_URL  = 'YOUR_SUPABASE_URL';
-const SUPABASE_KEY  = 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_URL  = 'https://pahitjvmtaqdabuzozuf.supabase.co';
+const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhaGl0anZtdGFxZGFidXpvenVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MDA2MTcsImV4cCI6MjA5NDk3NjYxN30.Kz0HlXEB6PSrNf6mrWZ86O_nkXkNm_4O88dtErRo-98';
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 

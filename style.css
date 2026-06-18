@@ -1,12 +1,12 @@
 /* =====================================================
-   VMLI Idiomas â€” Premium Liquid Glass v2.0
+   VMLI Idiomas — Premium Liquid Glass v2.0
    Upgrade: deeper glass, aurora halos, spring motion,
    specular highlights, layered depth, true transparency
    ===================================================== */
 
-/* â”€â”€â”€ Design Tokens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Design Tokens ──────────────────────────────── */
 :root {
-  /* Brand palette â€” golden spectrum */
+  /* Brand palette — golden spectrum */
   --gold:         #F5C200;
   --gold-bright:  #FFD94D;
   --gold-deep:    #C99800;
@@ -14,19 +14,19 @@
   --gold-glow:    rgba(245, 194, 0, 0.28);
   --gold-ring:    rgba(245, 194, 0, 0.16);
 
-  /* Cool accent â€” complements gold */
+  /* Cool accent — complements gold */
   --ice:          rgba(147, 197, 253, 0.15);
   --ice-bright:   rgba(147, 197, 253, 0.28);
   --teal-glow:    rgba(45, 212, 191, 0.14);
 
-  /* Dark matter â€” background layers */
+  /* Dark matter — background layers */
   --void:         #03060E;
   --bg-base:      #060A14;
   --bg-2:         #0B1022;
   --bg-3:         #111829;
   --bg-4:         #161F33;
 
-  /* Glass surfaces â€” true transparency tiers */
+  /* Glass surfaces — true transparency tiers */
   --glass-1:      rgba(255, 255, 255, 0.04);   /* subtlest: behind-the-scenes */
   --glass-2:      rgba(255, 255, 255, 0.07);   /* default card */
   --glass-3:      rgba(255, 255, 255, 0.10);   /* elevated card */
@@ -72,7 +72,7 @@
   --r-xl:   32px;
   --r-pill: 999px;
 
-  /* Motion â€” spring-like curves */
+  /* Motion — spring-like curves */
   --ease-spring:  cubic-bezier(0.34, 1.48, 0.64, 1.00);
   --ease-out:     cubic-bezier(0.16, 1.00, 0.30, 1.00);
   --ease-in-out:  cubic-bezier(0.65, 0.00, 0.35, 1.00);
@@ -87,7 +87,7 @@
   --blur-xl:  blur(56px) saturate(190%);
 }
 
-/* â”€â”€â”€ Base â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Base ───────────────────────────────────────── */
 *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -99,7 +99,7 @@ html {
 
 body {
   background:
-    /* Aurora halos â€” layered depth */
+    /* Aurora halos — layered depth */
     radial-gradient(ellipse 55% 38% at 10%  8%,  rgba(245, 194,   0, 0.22), transparent),
     radial-gradient(ellipse 40% 30% at 88%  6%,  rgba(100, 160, 255, 0.18), transparent),
     radial-gradient(ellipse 50% 40% at 72% 88%,  rgba( 45, 212, 191, 0.11), transparent),
@@ -139,7 +139,7 @@ body::after {
   background: radial-gradient(ellipse 100% 100% at center, transparent 50%, rgba(0, 0, 0, 0.35) 100%);
 }
 
-/* â”€â”€â”€ Typography refinements â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Typography refinements ──────────────────────── */
 ::selection {
   background: rgba(245, 194, 0, 0.32);
   color: #fff;
@@ -150,7 +150,7 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--t-100);
 }
 
-/* â”€â”€â”€ Scrollbar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Scrollbar ───────────────────────────────────── */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
@@ -162,7 +162,7 @@ h1, h2, h3, h4, h5, h6 {
 ::-webkit-scrollbar-thumb:hover { background: rgba(245, 194, 0, 0.42); }
 ::-webkit-scrollbar-corner { background: transparent; }
 
-/* â”€â”€â”€ Login screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Login screen ───────────────────────────────── */
 #login-screen {
   background:
     radial-gradient(ellipse 60% 50% at 18% 22%, rgba(245, 194,   0, 0.24), transparent),
@@ -214,7 +214,7 @@ h1, h2, h3, h4, h5, h6 {
     var(--spec-2);
 }
 
-/* â”€â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Sidebar ─────────────────────────────────────── */
 .sidebar {
   position: relative;
   background:
@@ -335,7 +335,7 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: var(--s-gold-md), var(--spec-3);
 }
 
-/* â”€â”€â”€ Topbar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Topbar ──────────────────────────────────────── */
 .topbar {
   position: relative;
   height: 72px;
@@ -375,7 +375,7 @@ h1, h2, h3, h4, h5, h6 {
 .page-title  { font-size: 19px; font-weight: 800; letter-spacing: -0.035em; }
 .page-header h2 { font-size: 28px; font-weight: 850; letter-spacing: -0.048em; }
 
-/* â”€â”€â”€ Cards â€” liquid glass panels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Cards — liquid glass panels ───────────────── */
 .card,
 .stat-card,
 .action-card,
@@ -441,7 +441,7 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: -0.02em;
 }
 
-/* Hover state â€” elevation lift */
+/* Hover state — elevation lift */
 .card:hover,
 .stat-card:hover,
 .action-card:hover,
@@ -455,7 +455,7 @@ h1, h2, h3, h4, h5, h6 {
   transform: translateY(-2px);
 }
 
-/* â”€â”€â”€ Stat cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Stat cards ──────────────────────────────────── */
 .stats-grid { gap: 16px; }
 
 .stat-card {
@@ -504,7 +504,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .stat-label { color: var(--t-60); }
 
-/* â”€â”€â”€ Buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Buttons ─────────────────────────────────────── */
 .btn {
   position: relative;
   display: inline-flex;
@@ -609,7 +609,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .btn-sm { min-height: 30px; padding: 6px 13px; font-size: 0.82rem; }
 
-/* â”€â”€â”€ Form Inputs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Form Inputs ─────────────────────────────────── */
 input[type="text"],
 input[type="email"],
 input[type="password"],
@@ -667,7 +667,7 @@ textarea:focus {
 
 select option { background: #111829; color: #F8FAFC; }
 
-/* â”€â”€â”€ Tables â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Tables ──────────────────────────────────────── */
 .table-wrapper {
   border-radius: var(--r-md);
   overflow: auto;
@@ -699,7 +699,7 @@ select option { background: #111829; color: #F8FAFC; }
   background: rgba(245, 194, 0, 0.07);
 }
 
-/* â”€â”€â”€ Badges â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Badges ──────────────────────────────────────── */
 .badge {
   border: 1px solid rgba(255, 255, 255, 0.10);
   box-shadow: var(--spec-1);
@@ -719,7 +719,7 @@ select option { background: #111829; color: #F8FAFC; }
 .badge-info    { background: rgba( 96, 165, 250, 0.14); color: #BFDBFE; border-color: rgba(96,165,250,0.22); }
 .badge-gray    { background: rgba(255, 255, 255, 0.08); color: var(--t-60); }
 
-/* â”€â”€â”€ Alerts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Alerts ──────────────────────────────────────── */
 .alert {
   background:
     linear-gradient(145deg,
@@ -743,7 +743,7 @@ select option { background: #111829; color: #F8FAFC; }
   box-shadow: 0 4px 18px rgba(245, 194, 0, 0.10);
 }
 
-/* â”€â”€â”€ Action cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Action cards ────────────────────────────────── */
 .actions-grid { gap: 14px; }
 
 .action-card {
@@ -781,7 +781,7 @@ select option { background: #111829; color: #F8FAFC; }
   box-shadow: var(--spec-2), var(--s-xs);
 }
 
-/* â”€â”€â”€ Turmas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Turmas ──────────────────────────────────────── */
 .turmas-grid { gap: 18px; }
 
 .turma-card { border-radius: var(--r-xl); }
@@ -817,7 +817,7 @@ select option { background: #111829; color: #F8FAFC; }
   border-color: rgba(245, 194, 0, 0.36);
 }
 
-/* â”€â”€â”€ PresenÃ§a / HistÃ³rico â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Presença / Histórico ────────────────────────── */
 .presenca-item,
 .historico-item,
 .fin-calc {
@@ -876,7 +876,7 @@ select option { background: #111829; color: #F8FAFC; }
   font-weight: 700;
 }
 
-/* â”€â”€â”€ Financeiro â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Financeiro ──────────────────────────────────── */
 .fin-summary-card {
   border-top: 1px solid rgba(245, 194, 0, 0.26);
 }
@@ -895,7 +895,7 @@ select option { background: #111829; color: #F8FAFC; }
   border-radius: 0 var(--r-xs) var(--r-xs) 0;
 }
 
-/* â”€â”€â”€ Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Modal ───────────────────────────────────────── */
 #modal-overlay {
   background:
     radial-gradient(ellipse 60% 50% at center, rgba(245, 194, 0, 0.06), transparent 55%),
@@ -948,7 +948,7 @@ select option { background: #111829; color: #F8FAFC; }
   transform: scale(1.12) rotate(90deg);
 }
 
-/* â”€â”€â”€ Toasts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Toasts ──────────────────────────────────────── */
 .toast {
   border-radius: var(--r-md);
   background:
@@ -974,14 +974,14 @@ select option { background: #111829; color: #F8FAFC; }
 .toast-info    { border-left: 3px solid #60A5FA; }
 .toast-warning { border-left: 3px solid #FBBF24; }
 
-/* â”€â”€â”€ Sidebar mobile overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Sidebar mobile overlay ──────────────────────── */
 .sidebar-overlay {
   background: rgba(0, 0, 0, 0.56);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
 
-/* â”€â”€â”€ Content layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Content layout ──────────────────────────────── */
 .main-wrapper { position: relative; z-index: 1; }
 
 .content {
@@ -990,20 +990,20 @@ select option { background: #111829; color: #F8FAFC; }
   padding: 28px 32px;
 }
 
-/* â”€â”€â”€ Utility â€” gold text glow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Utility — gold text glow ─────────────────── */
 .text-gold {
   color: var(--gold-bright);
   text-shadow: 0 0 24px rgba(245, 194, 0, 0.30);
 }
 
-/* â”€â”€â”€ Focus ring system â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Focus ring system ──────────────────────────── */
 :focus-visible {
   outline: 2px solid rgba(245, 194, 0, 0.60);
   outline-offset: 3px;
   border-radius: var(--r-xs);
 }
 
-/* â”€â”€â”€ Loading shimmer for skeletons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Loading shimmer for skeletons ──────────────── */
 @keyframes shimmer {
   from { background-position: -200% center; }
   to   { background-position:  200% center; }
@@ -1022,7 +1022,7 @@ select option { background: #111829; color: #F8FAFC; }
   border-radius: var(--r-xs);
 }
 
-/* â”€â”€â”€ Responsive â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Responsive ──────────────────────────────────── */
 @media (max-width: 768px) {
   .content { padding: 18px; }
 
@@ -1056,7 +1056,7 @@ select option { background: #111829; color: #F8FAFC; }
   .page-title { font-size: 16px; }
 }
 
-/* â”€â”€â”€ Reduced motion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Reduced motion ──────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -1064,7 +1064,7 @@ select option { background: #111829; color: #F8FAFC; }
   }
 }
 
-/* â”€â”€â”€ Fallback â€” no backdrop-filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Fallback — no backdrop-filter ──────────────── */
 @supports not ((backdrop-filter: blur(20px)) or (-webkit-backdrop-filter: blur(20px))) {
   .sidebar, .topbar,
   .card, .stat-card, .action-card, .event-card,

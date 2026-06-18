@@ -11,14 +11,6 @@ const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ============================================================
-// Integrações externas opcionais
-// - Cole aqui os Webhooks do n8n/Brevo/Mailchimp/WhatsApp quando estiverem prontos.
-// - Se ficarem vazios, o sistema apenas registra a campanha/mensagem no Supabase.
-// ============================================================
-const EMAIL_MARKETING_WEBHOOK_URL = '';
-const WHATSAPP_BROADCAST_WEBHOOK_URL = '';
-
-// ============================================================
 // 2. ESTADO GLOBAL
 // ============================================================
 let user    = null;   // auth user
@@ -35,34 +27,22 @@ const NAV = {
     { id:'minhas-turmas',    icon:'📚', label:'Minhas Turmas' },
     { id:'marcar-presenca',  icon:'✅', label:'Marcar Presença' },
     { id:'historico',        icon:'📋', label:'Histórico' },
+    { id:'eventos',          icon:'📅', label:'Eventos' },
     { id:'financeiro',       icon:'💰', label:'Financeiro' },
-    { id:'servicos',         icon:'🧩', label:'Serviços' },
-    { id:'membros',          icon:'👥', label:'Membros' },
   ],
   admin: [
-    { id:'dashboard',        icon:'🏠', label:'Dashboard' },
-    { id:'professores',      icon:'👨‍🏫', label:'Professores' },
-    { id:'turmas',           icon:'📚', label:'Turmas' },
-    { id:'turmas-ativas',    icon:'🗂️', label:'Turmas Ativas' },
-    { id:'aulas-admin',      icon:'📒', label:'Aulas Dadas' },
-    { id:'alunos',           icon:'🎓', label:'Alunos' },
-    { id:'financeiro',       icon:'💰', label:'Financeiro' },
-    { id:'mensagens',        icon:'📣', label:'Mensagens' },
-    { id:'email-marketing',  icon:'✉️', label:'Email Marketing' },
-    { id:'servicos',         icon:'🧩', label:'Serviços' },
-    { id:'membros',          icon:'👥', label:'Membros' },
+    { id:'dashboard',  icon:'🏠', label:'Dashboard' },
+    { id:'professores',icon:'👨‍🏫', label:'Professores' },
+    { id:'turmas',     icon:'📚', label:'Turmas' },
+    { id:'alunos',     icon:'🎓', label:'Alunos' },
+    { id:'servicos',   icon:'🛠️', label:'Serviços' },
+    { id:'eventos',    icon:'📅', label:'Eventos' },
+    { id:'financeiro', icon:'💰', label:'Financeiro' },
   ],
   financeiro: [
     { id:'dashboard',  icon:'🏠', label:'Dashboard' },
+    { id:'eventos',    icon:'📅', label:'Eventos' },
     { id:'financeiro', icon:'💰', label:'Financeiro' },
-    { id:'turmas-ativas', icon:'🗂️', label:'Turmas Ativas' },
-  ],
-  aluno: [
-    { id:'dashboard',       icon:'🏠', label:'Área do Aluno' },
-    { id:'minhas-turmas',   icon:'📚', label:'Minhas Turmas' },
-    { id:'financeiro-aluno',icon:'💳', label:'Pagamentos' },
-    { id:'servicos',        icon:'🧩', label:'Serviços' },
-    { id:'membros',         icon:'👥', label:'Membros' },
   ],
 };
 
@@ -192,17 +172,12 @@ function showTab(tab) {
     case 'minhas-turmas':   renderMinhasTurmas();   break;
     case 'marcar-presenca': renderMarcarPresenca(); break;
     case 'historico':       renderHistorico();      break;
-    case 'professores':       renderProfessores();            break;
-    case 'turmas':            renderTurmasAdmin();            break;
-    case 'turmas-ativas':     renderTurmasAtivasDetalhadas(); break;
-    case 'aulas-admin':       renderAulasAdmin();             break;
-    case 'alunos':            renderAlunos();                 break;
-    case 'financeiro':        renderFinanceiro();             break;
-    case 'financeiro-aluno':  renderFinanceiroAluno();        break;
-    case 'mensagens':         renderMensagens();              break;
-    case 'email-marketing':   renderEmailMarketing();         break;
-    case 'servicos':          renderServicos();               break;
-    case 'membros':           renderMembros();                break;
+    case 'professores':     renderProfessores();    break;
+    case 'turmas':          renderTurmasAdmin();    break;
+    case 'alunos':          renderAlunos();         break;
+    case 'servicos':        renderServicos();       break;
+    case 'eventos':         renderEventos();        break;
+    case 'financeiro':      renderFinanceiro();     break;
     default:                renderDashboard();
   }
 }
@@ -222,7 +197,6 @@ function closeSidebar() {
 async function renderDashboard() {
   if      (profile?.role === 'admin')      await renderDashboardAdmin();
   else if (profile?.role === 'financeiro') await renderDashboardFinanceiro();
-  else if (profile?.role === 'aluno')      await renderDashboardAluno();
   else                                      await renderDashboardProfessor();
 }
 
@@ -290,6 +264,30 @@ async function renderDashboardAdmin() {
   const { data: aulasDoMes } = await db.from('aulas').select('id').gte('data',monthStart(mes,ano)).lte('data',monthEnd(mes,ano));
   const { count: pendingCount } = await db.from('pagamentos').select('*',{count:'exact',head:true}).eq('status','pendente').eq('mes',mes).eq('ano',ano);
 
+  const { data: professores } = await db.from('profiles').select('id,name').eq('role','professor').eq('ativo',true);
+  const { data: turmasAtivas } = await db.from('turmas').select('id,professor_id').eq('status','active');
+  const turmaProfessor = {};
+  const profTurmas = {};
+  turmasAtivas?.forEach(t => {
+    turmaProfessor[t.id] = t.professor_id;
+    profTurmas[t.professor_id] = (profTurmas[t.professor_id]||0) + 1;
+  });
+  const turmaIds = turmasAtivas?.map(t => t.id) || [];
+  const { data: taRows } = turmaIds.length
+    ? await db.from('turma_alunos').select('turma_id,aluno_id').eq('status','active').in('turma_id', turmaIds)
+    : { data: [] };
+  const profAlunos = {};
+  taRows?.forEach(r => {
+    const professorId = turmaProfessor[r.turma_id];
+    if (professorId) profAlunos[professorId] = (profAlunos[professorId]||0) + 1;
+  });
+  const topProfs = (professores||[]).map(p => ({
+    ...p,
+    activeTurmas: profTurmas[p.id] || 0,
+    activeStudents: profAlunos[p.id] || 0,
+    score: (profTurmas[p.id] || 0) * 2 + (profAlunos[p.id] || 0),
+  })).sort((a,b) => b.score - a.score).slice(0,5);
+
   setContent(`
     <div class="page-header">
       <h2>Painel Administrativo 📊</h2>
@@ -306,6 +304,23 @@ async function renderDashboardAdmin() {
         ⚠️ <strong>${pendingCount} professor(es)</strong> com pagamento pendente em ${MONTHS[mes]}.
         <button class="btn btn-sm btn-warning" onclick="showTab('financeiro')">Ver Financeiro</button>
       </div>` : ''}
+    <div class="card">
+      <div class="card-header">
+        <h3>Melhores Professores</h3>
+        <span class="text-muted">Classificação por turmas ativas e alunos ativos</span>
+      </div>
+      <div class="card-body">
+        ${topProfs.length ? topProfs.map((p,i)=>`
+          <div class="list-item">
+            <div class="list-item-left">
+              <div class="list-item-title">${i+1}. ${p.name}</div>
+              <div class="list-item-sub">${p.activeTurmas} turma(s) ativa(s) • ${p.activeStudents} aluno(s) ativo(s)</div>
+            </div>
+            <div class="list-item-right"><span class="badge badge-info">Score ${p.score}</span></div>
+          </div>`).join('')
+        : '<p class="empty-state">Nenhum professor ativo encontrado.</p>'}
+      </div>
+    </div>
     <div class="quick-actions">
       <h3>Ações Rápidas</h3>
       <div class="actions-grid">
@@ -363,6 +378,200 @@ async function renderDashboardFinanceiro() {
              <button class="btn btn-sm btn-primary" onclick="showTab('financeiro')">Calcular</button></p>`}
       </div>
     </div>`);
+}
+
+async function renderServicos() {
+  const { data: servicos } = await db.from('servicos').select('*').order('ordem',{ascending:true});
+  _D.servicos = {};
+  servicos?.forEach(s => { _D.servicos[s.id] = s; });
+
+  setContent(`
+    <div class="page-header">
+      <h2>Serviços</h2>
+      <button class="btn btn-primary" onclick="openModalServico(null)">+ Novo Serviço</button>
+    </div>
+    <div class="card">
+      <div class="table-wrapper">
+        <table class="table">
+          <thead><tr>
+            <th>Serviço</th><th>Descrição</th><th>Status</th><th>Ações</th>
+          </tr></thead>
+          <tbody>
+            ${servicos?.length ? servicos.map(s=>`
+              <tr>
+                <td>${s.titulo}</td>
+                <td>${s.descricao||'—'}</td>
+                <td><span class="badge ${s.status==='active'?'badge-success':'badge-gray'}">${s.status==='active'?'Ativo':'Inativo'}</span></td>
+                <td><div class="action-btns">
+                  <button class="btn btn-sm btn-secondary" onclick="openModalServico('${s.id}')">Editar</button>
+                  <button class="btn btn-sm ${s.status==='active'?'btn-danger':'btn-success'}" onclick="toggleServicoStatus('${s.id}','${s.status}')">
+                    ${s.status==='active'?'Desativar':'Ativar'}
+                  </button>
+                </div></td>
+              </tr>`).join('')
+            : '<tr><td colspan="4" class="empty-state">Nenhum serviço cadastrado.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>`);
+}
+
+function openModalServico(id) {
+  const s = id ? _D.servicos?.[id] : null;
+  openModal(`
+    <div class="modal-header">
+      <h3>${s ? 'Editar Serviço' : 'Novo Serviço'}</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <form onsubmit="saveServico(event)" style="padding:20px">
+      <div class="form-group">
+        <label>Título *</label>
+        <input type="text" name="titulo" value="${esc(s?.titulo)}" required>
+      </div>
+      <div class="form-group">
+        <label>Descrição</label>
+        <textarea name="descricao" rows="3">${esc(s?.descricao)}</textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Ordem</label>
+          <input type="number" name="ordem" value="${s?.ordem||0}" min="0">
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select name="status">
+            <option value="active" ${s?.status==='active'?'selected':''}>Ativo</option>
+            <option value="inactive" ${s?.status==='inactive'?'selected':''}>Inativo</option>
+          </select>
+        </div>
+      </div>
+      <input type="hidden" name="id" value="${s?.id||''}">
+      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${s ? 'Salvar Serviço' : 'Criar Serviço'}</button>
+      </div>
+    </form>`);
+}
+
+async function saveServico(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const id = fd.get('id');
+  const row = {
+    titulo: fd.get('titulo').trim(),
+    descricao: fd.get('descricao').trim() || null,
+    ordem: parseInt(fd.get('ordem')) || 0,
+    status: fd.get('status') || 'inactive',
+  };
+  const btn = e.target.querySelector('[type=submit]');
+  btn.disabled = true;
+  const { error } = id ? await db.from('servicos').update(row).eq('id', id) : await db.from('servicos').insert(row);
+  if (error) { showToast('Erro: '+error.message, 'error'); btn.disabled=false; return; }
+  showToast(id ? 'Serviço atualizado!' : 'Serviço criado!', 'success');
+  closeModal(); renderServicos();
+}
+
+async function toggleServicoStatus(id, status) {
+  const next = status === 'active' ? 'inactive' : 'active';
+  await db.from('servicos').update({ status: next }).eq('id', id);
+  showToast(`Serviço ${next === 'active' ? 'ativado' : 'desativado'}!`, 'success');
+  renderServicos();
+}
+
+async function renderEventos() {
+  const { data: eventos } = await db.from('eventos').select('*').order('data',{ascending:true});
+  _D.eventos = {};
+  eventos?.forEach(ev => { _D.eventos[ev.id] = ev; });
+
+  setContent(`
+    <div class="page-header">
+      <h2>Eventos</h2>
+      ${profile?.role==='admin' ? '<button class="btn btn-primary" onclick="openModalEvento(null)">+ Novo Evento</button>' : ''}
+    </div>
+    <div class="card">
+      <div class="card-body">
+        ${eventos?.length ? eventos.map(ev=>`
+          <div class="event-card">
+            <div class="event-card-main">
+              <div>
+                <div class="event-title">${ev.titulo}</div>
+                <div class="event-meta">${formatDate(ev.data||'')} • ${ev.local||'Local não informado'}</div>
+              </div>
+              <span class="badge ${ev.status==='active'?'badge-success':'badge-gray'}">${ev.status==='active'?'Publicado':'Arquivado'}</span>
+            </div>
+            <p class="event-desc">${ev.descricao||'<span class="text-muted">Sem descrição</span>'}</p>
+            ${profile?.role==='admin' ? `<div class="event-actions"><button class="btn btn-sm btn-secondary" onclick="openModalEvento('${ev.id}')">Editar</button><button class="btn btn-sm ${ev.status==='active'?'btn-danger':'btn-success'}" onclick="toggleEventoStatus('${ev.id}','${ev.status}')">${ev.status==='active'?'Ocultar':'Publicar'}</button></div>` : ''}
+          </div>`).join('')
+        : '<div class="empty-card"><p>Nenhum evento cadastrado ainda.</p></div>'}
+      </div>
+    </div>`);
+}
+
+function openModalEvento(id) {
+  const ev = id ? _D.eventos?.[id] : null;
+  openModal(`
+    <div class="modal-header">
+      <h3>${ev ? 'Editar Evento' : 'Novo Evento'}</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <form onsubmit="saveEvento(event)" style="padding:20px">
+      <div class="form-group">
+        <label>Título *</label>
+        <input type="text" name="titulo" value="${esc(ev?.titulo)}" required>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Data *</label>
+          <input type="date" name="data" value="${ev?.data||''}" required>
+        </div>
+        <div class="form-group">
+          <label>Local</label>
+          <input type="text" name="local" value="${esc(ev?.local)}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Descrição</label>
+        <textarea name="descricao" rows="3">${esc(ev?.descricao)}</textarea>
+      </div>
+      <div class="form-group">
+        <label>Status</label>
+        <select name="status">
+          <option value="active" ${ev?.status==='active'?'selected':''}>Publicado</option>
+          <option value="inactive" ${ev?.status==='inactive'?'selected':''}>Arquivado</option>
+        </select>
+      </div>
+      <input type="hidden" name="id" value="${ev?.id||''}">
+      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${ev ? 'Salvar Evento' : 'Criar Evento'}</button>
+      </div>
+    </form>`);
+}
+
+async function saveEvento(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const id = fd.get('id');
+  const row = {
+    titulo: fd.get('titulo').trim(),
+    data: fd.get('data'),
+    local: fd.get('local').trim() || null,
+    descricao: fd.get('descricao').trim() || null,
+    status: fd.get('status') || 'inactive',
+  };
+  const btn = e.target.querySelector('[type=submit]');
+  btn.disabled = true;
+  const { error } = id ? await db.from('eventos').update(row).eq('id', id) : await db.from('eventos').insert(row);
+  if (error) { showToast('Erro: '+error.message, 'error'); btn.disabled=false; return; }
+  showToast(id ? 'Evento atualizado!' : 'Evento criado!', 'success');
+  closeModal(); renderEventos();
+}
+
+async function toggleEventoStatus(id, status) {
+  const next = status === 'active' ? 'inactive' : 'active';
+  await db.from('eventos').update({ status: next }).eq('id', id);
+  showToast(`Evento ${next === 'active' ? 'publicado' : 'arquivado'}!`, 'success');
+  renderEventos();
 }
 
 // ============================================================
@@ -1416,380 +1625,8 @@ async function desmarcarPago(pagId) {
   loadFinanceiroAdmin();
 }
 
-
 // ============================================================
-// 14. ÁREA DO ALUNO, TURMAS ATIVAS, AULAS, MARKETING, MENSAGENS, SERVIÇOS E MEMBROS
-// ============================================================
-async function getAlunoAtual() {
-  if (profile?.role !== 'aluno') return null;
-  if (profile?.aluno_id) {
-    const { data } = await db.from('alunos').select('*').eq('id', profile.aluno_id).maybeSingle();
-    if (data) return data;
-  }
-  if (profile?.email) {
-    const { data } = await db.from('alunos').select('*').ilike('email', profile.email).maybeSingle();
-    return data || null;
-  }
-  return null;
-}
-
-async function renderDashboardAluno() {
-  const aluno = await getAlunoAtual();
-  if (!aluno) {
-    setContent(`<div class="page-header"><h2>Área do Aluno</h2></div>
-      <div class="alert alert-warning">Seu usuário está logado como aluno, mas ainda não foi vinculado a um cadastro em <strong>alunos</strong>. O admin precisa cadastrar seu email na tabela de alunos ou preencher <code>profiles.aluno_id</code>.</div>`);
-    return;
-  }
-
-  const { data: tRows } = await db.from('turma_alunos')
-    .select('turmas(id,codigo,nome,horario,idioma,nivel,meet_link,profiles!turmas_professor_id_fkey(name))')
-    .eq('aluno_id', aluno.id).eq('status','active');
-
-  const { data: pagamentos, error: pagErr } = await db.from('aluno_pagamentos')
-    .select('*').eq('aluno_id', aluno.id).order('vencimento',{ascending:true}).limit(5);
-
-  const aberto = !pagErr && pagamentos ? pagamentos.filter(p=>p.status !== 'pago').length : 0;
-
-  setContent(`
-    <div class="page-header"><h2>Bem-vindo(a), ${aluno.nome?.split(' ')[0] || 'aluno'} 👋</h2></div>
-    <div class="stats-grid">
-      ${statCard('📚', tRows?.length||0, 'Turmas ativas')}
-      ${statCard('💳', pagErr ? '—' : aberto, 'Pagamentos em aberto')}
-      ${statCard('🧩', 'VMLI', 'Serviços disponíveis', "showTab('servicos')")}
-    </div>
-    <div class="card">
-      <div class="card-header"><h3>Minhas próximas informações</h3></div>
-      <div class="card-body">
-        ${tRows?.length ? tRows.map(r=>{
-          const t = r.turmas;
-          return `<div class="list-item">
-            <div class="list-item-left">
-              <div class="list-item-title">${t?.codigo || 'Turma'} ${t?.nome ? '— '+t.nome : ''}</div>
-              <div class="list-item-sub">${t?.profiles?.name || 'Professor'} • ${t?.horario || 'Horário a confirmar'} • ${t?.idioma || 'Inglês'}${t?.nivel ? ' • '+t.nivel : ''}</div>
-            </div>
-            ${t?.meet_link ? `<a class="btn btn-sm btn-primary" href="${t.meet_link}" target="_blank">Entrar na aula</a>` : ''}
-          </div>`;
-        }).join('') : '<p class="empty-state">Nenhuma turma ativa vinculada ao seu cadastro.</p>'}
-      </div>
-    </div>`);
-}
-
-async function renderFinanceiroAluno() {
-  const aluno = await getAlunoAtual();
-  if (!aluno) {
-    setContent(`<div class="page-header"><h2>Pagamentos</h2></div><div class="alert alert-warning">Aluno não vinculado ao cadastro financeiro.</div>`);
-    return;
-  }
-  const { data: pags, error } = await db.from('aluno_pagamentos').select('*').eq('aluno_id', aluno.id).order('vencimento',{ascending:false});
-  if (error) {
-    setContent(`<div class="page-header"><h2>Pagamentos</h2></div>
-      <div class="alert alert-warning">A tabela <code>aluno_pagamentos</code> ainda não existe no Supabase. Rode o SQL complementar que deixei abaixo.</div>`);
-    return;
-  }
-  const totalAberto = (pags||[]).filter(p=>p.status !== 'pago').reduce((s,p)=>s+(p.valor||0),0);
-  setContent(`
-    <div class="page-header"><h2>Meus Pagamentos</h2><span class="text-muted">${aluno.nome}</span></div>
-    <div class="stats-grid">${statCard('⏳', formatCurrency(totalAberto), 'Total em aberto')}</div>
-    <div class="card"><div class="table-wrapper"><table class="table">
-      <thead><tr><th>Mês</th><th>Vencimento</th><th>Valor</th><th>Status</th><th>Link</th></tr></thead>
-      <tbody>
-        ${pags?.length ? pags.map(p=>`<tr>
-          <td>${p.mes ? MONTHS[p.mes] : '—'} ${p.ano || ''}</td>
-          <td>${p.vencimento ? formatDate(p.vencimento) : '—'}</td>
-          <td><strong>${formatCurrency(p.valor)}</strong></td>
-          <td><span class="badge ${p.status==='pago'?'badge-success':'badge-warning'}">${p.status==='pago'?'Pago':'Pendente'}</span></td>
-          <td>${p.link_pagamento ? `<a href="${p.link_pagamento}" target="_blank">Abrir</a>` : '—'}</td>
-        </tr>`).join('') : '<tr><td colspan="5" class="empty-state">Nenhum pagamento cadastrado.</td></tr>'}
-      </tbody>
-    </table></div></div>`);
-}
-
-async function renderTurmasAtivasDetalhadas() {
-  const { data: turmas } = await db.from('turmas')
-    .select('*,profiles!turmas_professor_id_fkey(name,email)')
-    .eq('status','active').order('codigo');
-
-  const turmaIds = turmas?.map(t=>t.id)||[];
-  const { data: tAlunos } = turmaIds.length
-    ? await db.from('turma_alunos').select('turma_id,alunos(id,nome,email,telefone)').in('turma_id', turmaIds).eq('status','active')
-    : { data: [] };
-
-  const alunosByTurma = {};
-  tAlunos?.forEach(ta => { (alunosByTurma[ta.turma_id]||(alunosByTurma[ta.turma_id]=[])).push(ta.alunos); });
-
-  setContent(`
-    <div class="page-header"><h2>Turmas Ativas</h2><span class="text-muted">Responsável, alunos, horário, início e término</span></div>
-    <div class="turmas-grid">
-      ${turmas?.length ? turmas.map(t=>{
-        const alunos = alunosByTurma[t.id]||[];
-        return `<div class="turma-card">
-          <div class="turma-card-header">
-            <div><div class="turma-codigo">${t.codigo}</div>${t.nome?`<div class="turma-nome">${t.nome}</div>`:''}</div>
-            <span class="badge badge-success">Ativa</span>
-          </div>
-          <div class="turma-details">
-            <div>👨‍🏫 Responsável: <strong>${t.profiles?.name || '—'}</strong></div>
-            <div>🕐 ${t.horario || 'Horário não definido'}</div>
-            <div>🌍 ${t.idioma || 'Inglês'}${t.nivel ? ' • '+t.nivel : ''}</div>
-            <div>📅 Início: ${t.data_inicio ? formatDate(t.data_inicio) : '—'} • Término: ${t.data_fim ? formatDate(t.data_fim) : '—'}</div>
-          </div>
-          <div class="turma-alunos"><strong>Alunos (${alunos.length})</strong>
-            <div class="alunos-list" style="margin-top:8px">
-              ${alunos.length ? alunos.map(a=>`<span class="aluno-chip" title="${a?.email || ''}">${a?.nome}</span>`).join('') : '<span class="text-muted" style="font-size:12px">Nenhum aluno vinculado</span>'}
-            </div>
-          </div>
-        </div>`;
-      }).join('') : '<div class="empty-card"><p>Nenhuma turma ativa.</p></div>'}
-    </div>`);
-}
-
-async function renderAulasAdmin() {
-  const { mes, ano } = getCurrentMonthYear();
-  setContent(`
-    <div class="page-header"><h2>Aulas Dadas e Progresso</h2><span class="text-muted">Controle onde cada turma está no material</span></div>
-    <div class="filters-bar">
-      <select id="ames">${MONTHS.slice(1).map((m,i)=>`<option value="${i+1}" ${i+1===mes?'selected':''}>${m}</option>`).join('')}</select>
-      <select id="aano">${[ano-1,ano,ano+1].map(y=>`<option value="${y}" ${y===ano?'selected':''}>${y}</option>`).join('')}</select>
-      <button class="btn btn-primary" onclick="loadAulasAdmin()">Ver aulas</button>
-    </div>
-    <div id="aulas-admin-box"><div class="loading"><div class="spinner"></div></div></div>`);
-  loadAulasAdmin();
-}
-
-async function loadAulasAdmin() {
-  const mes = parseInt(document.getElementById('ames')?.value) || getCurrentMonthYear().mes;
-  const ano = parseInt(document.getElementById('aano')?.value) || getCurrentMonthYear().ano;
-  const box = document.getElementById('aulas-admin-box');
-  if (!box) return;
-  box.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
-
-  const { data: aulas, error } = await db.from('aulas')
-    .select('*,turmas(codigo,nome,horario,idioma,nivel),profiles!aulas_professor_id_fkey(name),presencas(status)')
-    .gte('data', monthStart(mes,ano)).lte('data', monthEnd(mes,ano))
-    .order('data',{ascending:false});
-  if (error) { box.innerHTML = `<div class="alert alert-warning">Erro ao carregar aulas: ${error.message}</div>`; return; }
-
-  const latestByTurma = {};
-  (aulas||[]).forEach(a => { if (!latestByTurma[a.turma_id]) latestByTurma[a.turma_id] = a; });
-
-  box.innerHTML = `
-    <div class="stats-grid stats-compact">
-      ${statCard('📅', aulas?.length||0, `Aulas em ${MONTHS[mes]}`)}
-      ${statCard('📚', Object.keys(latestByTurma).length, 'Turmas com registro')}
-    </div>
-    <div class="card" style="margin-bottom:16px">
-      <div class="card-header"><h3>Onde cada turma está</h3></div>
-      <div class="card-body">
-        ${Object.values(latestByTurma).length ? Object.values(latestByTurma).map(a=>`<div class="list-item">
-          <div class="list-item-left">
-            <div class="list-item-title">${a.turmas?.codigo || 'Turma'} — última aula em ${formatDate(a.data)}</div>
-            <div class="list-item-sub">${a.profiles?.name || 'Professor'} • ${a.turmas?.horario || ''}</div>
-            <div class="list-item-sub">📖 ${[a.chapter?'Chapter '+a.chapter:'',a.page_num?'Page '+a.page_num:'',a.exercise?'Exercise '+a.exercise:''].filter(Boolean).join(' • ') || 'Material não informado'}</div>
-          </div>
-        </div>`).join('') : '<p class="empty-state">Nenhuma aula registrada neste mês.</p>'}
-      </div>
-    </div>
-    <div class="card"><div class="table-wrapper"><table class="table">
-      <thead><tr><th>Data</th><th>Turma</th><th>Professor</th><th>Presenças</th><th>Material</th><th>Observações</th></tr></thead>
-      <tbody>
-        ${aulas?.length ? aulas.map(a=>{
-          const pres = a.presencas?.filter(p=>p.status==='P').length || 0;
-          const aus = a.presencas?.filter(p=>p.status==='A').length || 0;
-          return `<tr>
-            <td>${formatDate(a.data)}</td>
-            <td><strong>${a.turmas?.codigo || '—'}</strong><br><small>${a.turmas?.nome || ''}</small></td>
-            <td>${a.profiles?.name || '—'} ${a.is_substituicao ? '<br><span class="badge badge-warning">Substituição</span>' : ''}</td>
-            <td>✅ ${pres} / ❌ ${aus}</td>
-            <td>${[a.chapter?'Ch. '+a.chapter:'',a.page_num?'p. '+a.page_num:'',a.exercise?'Ex. '+a.exercise:''].filter(Boolean).join(' • ') || '—'}</td>
-            <td>${a.notas || '—'}</td>
-          </tr>`;
-        }).join('') : '<tr><td colspan="6" class="empty-state">Nenhuma aula encontrada.</td></tr>'}
-      </tbody>
-    </table></div></div>`;
-}
-
-async function renderMensagens() {
-  const { count: alunoCount } = await db.from('alunos').select('*',{count:'exact',head:true});
-  setContent(`
-    <div class="page-header"><h2>Enviar Mensagem aos Alunos</h2><span class="text-muted">WhatsApp, email ou comunicado interno via webhook</span></div>
-    <div class="card">
-      <form onsubmit="sendMensagemAlunos(event)" style="padding:20px">
-        <div class="alert alert-info">Este módulo registra a mensagem no Supabase. Para envio real por WhatsApp/email, conecte o webhook do n8n em <code>WHATSAPP_BROADCAST_WEBHOOK_URL</code>.</div>
-        <div class="form-row">
-          <div class="form-group"><label>Canal</label><select name="canal"><option value="whatsapp">WhatsApp</option><option value="email">Email</option><option value="interno">Comunicado interno</option></select></div>
-          <div class="form-group"><label>Público</label><select name="publico"><option value="todos">Todos os alunos (${alunoCount||0})</option></select></div>
-        </div>
-        <div class="form-group"><label>Título / Assunto *</label><input type="text" name="titulo" required placeholder="Ex: Aviso importante sobre as aulas"></div>
-        <div class="form-group"><label>Mensagem *</label><textarea name="mensagem" rows="5" required placeholder="Digite a mensagem que será enviada aos alunos..."></textarea></div>
-        <button class="btn btn-primary btn-full" type="submit">📣 Registrar / Enviar Mensagem</button>
-      </form>
-    </div>
-    <div id="msg-history"></div>`);
-  loadMensagemHistory();
-}
-
-async function sendMensagemAlunos(e) {
-  e.preventDefault();
-  const fd = new FormData(e.target);
-  const btn = e.target.querySelector('[type=submit]');
-  btn.disabled = true; btn.textContent = 'Processando…';
-
-  const { data: alunos } = await db.from('alunos').select('id,nome,email,telefone').order('nome');
-  const payload = {
-    canal: fd.get('canal'), publico: fd.get('publico'), titulo: fd.get('titulo').trim(),
-    mensagem: fd.get('mensagem').trim(), total_destinatarios: alunos?.length || 0,
-    destinatarios: alunos || [], created_by: user.id
-  };
-
-  const { error } = await db.from('comunicacoes').insert(payload);
-  if (error) { showToast('Erro ao registrar: '+error.message,'error'); btn.disabled=false; btn.textContent='📣 Registrar / Enviar Mensagem'; return; }
-
-  if (WHATSAPP_BROADCAST_WEBHOOK_URL) {
-    try { await fetch(WHATSAPP_BROADCAST_WEBHOOK_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) }); }
-    catch (_) { showToast('Mensagem registrada, mas o webhook falhou.', 'warning'); }
-  }
-  showToast(WHATSAPP_BROADCAST_WEBHOOK_URL ? 'Mensagem enviada para o webhook!' : 'Mensagem registrada. Configure o webhook para envio real.', 'success');
-  e.target.reset(); btn.disabled=false; btn.textContent='📣 Registrar / Enviar Mensagem'; loadMensagemHistory();
-}
-
-async function loadMensagemHistory() {
-  const box = document.getElementById('msg-history');
-  if (!box) return;
-  const { data, error } = await db.from('comunicacoes').select('*').order('created_at',{ascending:false}).limit(8);
-  if (error) { box.innerHTML = `<div class="alert alert-warning">Crie a tabela <code>comunicacoes</code> no Supabase para ativar o histórico.</div>`; return; }
-  box.innerHTML = `<div class="card"><div class="card-header"><h3>Últimas mensagens</h3></div><div class="card-body">
-    ${data?.length ? data.map(c=>`<div class="list-item"><div class="list-item-left"><div class="list-item-title">${c.titulo}</div><div class="list-item-sub">${c.canal} • ${c.total_destinatarios || 0} destinatários • ${new Date(c.created_at).toLocaleString('pt-BR')}</div></div></div>`).join('') : '<p class="empty-state">Nenhuma mensagem registrada.</p>'}
-  </div></div>`;
-}
-
-async function renderEmailMarketing() {
-  setContent(`
-    <div class="page-header"><h2>Email Marketing</h2><span class="text-muted">Campanhas, newsletters e automações</span></div>
-    <div class="card">
-      <form onsubmit="saveEmailCampanha(event)" style="padding:20px">
-        <div class="alert alert-info">Para disparo real, conecte Brevo, Mailchimp, Resend ou n8n usando <code>EMAIL_MARKETING_WEBHOOK_URL</code>. Sem webhook, a campanha fica salva como rascunho.</div>
-        <div class="form-row">
-          <div class="form-group"><label>Nome da campanha *</label><input type="text" name="nome" required placeholder="Ex: Matrículas abertas 2026"></div>
-          <div class="form-group"><label>Status</label><select name="status"><option value="rascunho">Rascunho</option><option value="agendada">Agendada</option><option value="enviada">Enviar para webhook agora</option></select></div>
-        </div>
-        <div class="form-group"><label>Assunto do email *</label><input type="text" name="assunto" required></div>
-        <div class="form-group"><label>Prévia / Subtítulo</label><input type="text" name="preview"></div>
-        <div class="form-group"><label>Conteúdo do email *</label><textarea name="conteudo" rows="8" required></textarea></div>
-        <button class="btn btn-primary btn-full" type="submit">✉️ Salvar Campanha</button>
-      </form>
-    </div>
-    <div id="email-campanhas-list"></div>`);
-  loadEmailCampanhas();
-}
-
-async function saveEmailCampanha(e) {
-  e.preventDefault();
-  const fd = new FormData(e.target);
-  const row = {
-    nome: fd.get('nome').trim(), assunto: fd.get('assunto').trim(), preview: fd.get('preview').trim()||null,
-    conteudo: fd.get('conteudo').trim(), status: fd.get('status'), created_by: user.id, updated_at: new Date().toISOString()
-  };
-  const btn = e.target.querySelector('[type=submit]');
-  btn.disabled = true;
-  const { data, error } = await db.from('email_campanhas').insert(row).select().single();
-  if (error) { showToast('Erro: '+error.message,'error'); btn.disabled=false; return; }
-  if (row.status === 'enviada' && EMAIL_MARKETING_WEBHOOK_URL) {
-    try { await fetch(EMAIL_MARKETING_WEBHOOK_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) }); }
-    catch (_) { showToast('Campanha salva, mas o webhook falhou.', 'warning'); }
-  }
-  showToast('Campanha salva!', 'success');
-  e.target.reset(); btn.disabled=false; loadEmailCampanhas();
-}
-
-async function loadEmailCampanhas() {
-  const box = document.getElementById('email-campanhas-list');
-  if (!box) return;
-  const { data, error } = await db.from('email_campanhas').select('*').order('created_at',{ascending:false}).limit(10);
-  if (error) { box.innerHTML = `<div class="alert alert-warning">Crie a tabela <code>email_campanhas</code> no Supabase para ativar este módulo.</div>`; return; }
-  box.innerHTML = `<div class="card"><div class="card-header"><h3>Campanhas recentes</h3></div><div class="card-body">
-    ${data?.length ? data.map(c=>`<div class="list-item"><div class="list-item-left"><div class="list-item-title">${c.nome}</div><div class="list-item-sub">${c.assunto} • ${c.status}</div></div><span class="date-badge">${new Date(c.created_at).toLocaleDateString('pt-BR')}</span></div>`).join('') : '<p class="empty-state">Nenhuma campanha criada.</p>'}
-  </div></div>`;
-}
-
-async function renderServicos() {
-  const isAdmin = profile?.role === 'admin';
-  const { data, error } = await db.from('servicos').select('*').eq('ativo', true).order('ordem').order('nome');
-  setContent(`
-    <div class="page-header"><h2>Serviços VMLI</h2>${isAdmin?'<button class="btn btn-primary" onclick="openModalServico(null)">+ Novo Serviço</button>':''}</div>
-    ${error ? '<div class="alert alert-warning">Crie a tabela <code>servicos</code> no Supabase para gerenciar os serviços pelo sistema.</div>' : ''}
-    <div class="turmas-grid">
-      ${data?.length ? data.map(s=>`<div class="turma-card">
-        <div class="turma-card-header"><div><div class="turma-codigo">${s.nome}</div><div class="turma-nome">${s.categoria || 'Serviço'}</div></div><span class="badge badge-info">${s.modalidade || 'VMLI'}</span></div>
-        <div class="turma-details"><div>${s.descricao || 'Descrição não informada.'}</div>${s.preco_base ? `<div>💰 A partir de ${formatCurrency(s.preco_base)}</div>` : ''}</div>
-        ${isAdmin ? `<div class="turma-card-footer"><button class="btn btn-sm btn-secondary" onclick="openModalServico('${s.id}')">Editar</button></div>` : ''}
-      </div>`).join('') : defaultServicosHtml(isAdmin)}
-    </div>`);
-  _D.servicos = {}; data?.forEach(s=>{ _D.servicos[s.id]=s; });
-}
-
-function defaultServicosHtml(isAdmin=false) {
-  const defs = [
-    ['Inglês para adultos','Aulas individuais ou em grupo com foco em comunicação real.'],
-    ['Inglês corporativo','Treinamentos para empresas, times e profissionais.'],
-    ['Preparatórios internacionais','IELTS, TOEFL, Cambridge e entrevistas globais.'],
-    ['Espanhol','Aulas para comunicação, viagens e negócios.'],
-    ['Mentoria global','Carreira internacional, networking e posicionamento profissional.'],
-    ['Tradução e revisão','Documentos, apresentações, currículos e materiais técnicos.']
-  ];
-  return defs.map(([n,d])=>`<div class="turma-card"><div class="turma-card-header"><div><div class="turma-codigo">${n}</div></div><span class="badge badge-info">VMLI</span></div><div class="turma-details"><div>${d}</div></div></div>`).join('') + (isAdmin?'<div class="alert alert-info">Cadastre serviços no botão acima para substituir estes cards padrão.</div>':'');
-}
-
-function openModalServico(id) {
-  const s = id ? _D.servicos?.[id] : null;
-  openModal(`
-    <div class="modal-header"><h3>${s?'Editar Serviço':'Novo Serviço'}</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
-    <form onsubmit="saveServico(event)" style="padding:20px">
-      <input type="hidden" name="id" value="${s?.id||''}">
-      <div class="form-group"><label>Nome *</label><input type="text" name="nome" value="${esc(s?.nome)}" required></div>
-      <div class="form-row"><div class="form-group"><label>Categoria</label><input type="text" name="categoria" value="${esc(s?.categoria)}"></div><div class="form-group"><label>Modalidade</label><input type="text" name="modalidade" value="${esc(s?.modalidade)}" placeholder="Online, Presencial, Híbrido"></div></div>
-      <div class="form-group"><label>Descrição</label><textarea name="descricao" rows="3">${esc(s?.descricao)}</textarea></div>
-      <div class="form-row"><div class="form-group"><label>Preço base</label><input type="number" name="preco_base" step="0.01" min="0" value="${s?.preco_base||''}"></div><div class="form-group"><label>Ordem</label><input type="number" name="ordem" value="${s?.ordem||0}"></div></div>
-      <div class="modal-footer" style="padding:0;margin-top:20px;border:none"><button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button type="submit" class="btn btn-primary">Salvar</button></div>
-    </form>`);
-}
-
-async function saveServico(e) {
-  e.preventDefault();
-  const fd = new FormData(e.target);
-  const id = fd.get('id');
-  const row = { nome:fd.get('nome').trim(), categoria:fd.get('categoria').trim()||null, modalidade:fd.get('modalidade').trim()||null, descricao:fd.get('descricao').trim()||null, preco_base:parseFloat(fd.get('preco_base'))||null, ordem:parseInt(fd.get('ordem'))||0, ativo:true };
-  const { error } = id ? await db.from('servicos').update(row).eq('id',id) : await db.from('servicos').insert(row);
-  if (error) { showToast('Erro: '+error.message,'error'); return; }
-  showToast('Serviço salvo!', 'success'); closeModal(); renderServicos();
-}
-
-async function renderMembros() {
-  if (profile?.role === 'admin') {
-    const [{ data: profs }, { data: alunos }] = await Promise.all([
-      db.from('profiles').select('id,name,email,role,ativo').in('role',['admin','professor','financeiro']).order('name'),
-      db.from('alunos').select('id,nome,email,telefone').order('nome')
-    ]);
-    setContent(`
-      <div class="page-header"><h2>Área de Membros</h2><span class="text-muted">Equipe, professores e alunos</span></div>
-      <div class="stats-grid">${statCard('👨‍🏫', profs?.filter(p=>p.role==='professor').length||0, 'Professores')}${statCard('🎓', alunos?.length||0, 'Alunos')}${statCard('🧑‍💼', profs?.filter(p=>p.role==='admin'||p.role==='financeiro').length||0, 'Gestão')}</div>
-      <div class="card"><div class="card-header"><h3>Equipe</h3></div><div class="card-body">${profs?.map(p=>`<div class="list-item"><div class="list-item-left"><div class="list-item-title">${p.name}</div><div class="list-item-sub">${p.email} • ${getRoleLabel(p.role)}</div></div><span class="badge ${p.ativo?'badge-success':'badge-gray'}">${p.ativo?'Ativo':'Inativo'}</span></div>`).join('') || ''}</div></div>
-      <div class="card"><div class="card-header"><h3>Alunos</h3></div><div class="card-body">${alunos?.map(a=>`<div class="list-item"><div class="list-item-left"><div class="list-item-title">${a.nome}</div><div class="list-item-sub">${a.email || 'Sem email'} • ${a.telefone || 'Sem telefone'}</div></div></div>`).join('') || '<p class="empty-state">Nenhum aluno.</p>'}</div></div>`);
-  } else {
-    setContent(`
-      <div class="page-header"><h2>Área de Membros</h2></div>
-      <div class="card"><div class="card-body">
-        <h3>VMLI Members</h3>
-        <p class="text-muted">Este espaço pode concentrar materiais, avisos, links importantes, calendário da escola e benefícios para alunos e professores.</p>
-        <div class="actions-grid" style="margin-top:16px">
-          <button class="action-card" onclick="showTab('servicos')"><span class="action-icon">🧩</span><span>Ver Serviços</span></button>
-          <button class="action-card" onclick="showTab('minhas-turmas')"><span class="action-icon">📚</span><span>Minhas Turmas</span></button>
-        </div>
-      </div></div>`);
-  }
-}
-
-// ============================================================
-// 15. UTILITÁRIOS
+// 14. UTILITÁRIOS
 // ============================================================
 function setContent(html) {
   const el = document.getElementById('content');
@@ -1849,7 +1686,7 @@ function monthEnd(mes, ano) {
 }
 
 function getRoleLabel(r) {
-  return { admin:'Administrador', professor:'Professor', financeiro:'Financeiro', aluno:'Aluno' }[r] || r;
+  return { admin:'Administrador', professor:'Professor', financeiro:'Financeiro' }[r] || r;
 }
 
 function modalLabel(m) {

@@ -31,13 +31,14 @@ const NAV = {
     { id:'financeiro',       icon:'💰', label:'Financeiro' },
   ],
   admin: [
-    { id:'dashboard',  icon:'🏠', label:'Dashboard' },
-    { id:'professores',icon:'👨‍🏫', label:'Professores' },
-    { id:'turmas',     icon:'📚', label:'Turmas' },
-    { id:'alunos',     icon:'🎓', label:'Alunos' },
-    { id:'servicos',   icon:'🛠️', label:'Serviços' },
-    { id:'eventos',    icon:'📅', label:'Eventos' },
-    { id:'financeiro', icon:'💰', label:'Financeiro' },
+    { id:'dashboard',     icon:'🏠', label:'Dashboard' },
+    { id:'professores',   icon:'👨‍🏫', label:'Professores' },
+    { id:'turmas',        icon:'📚', label:'Turmas' },
+    { id:'alunos',        icon:'🎓', label:'Alunos' },
+    { id:'experimentais', icon:'🔬', label:'Experimentais' },
+    { id:'servicos',      icon:'🛠️', label:'Serviços' },
+    { id:'eventos',       icon:'📅', label:'Eventos' },
+    { id:'financeiro',    icon:'💰', label:'Financeiro' },
   ],
   financeiro: [
     { id:'dashboard',  icon:'🏠', label:'Dashboard' },
@@ -178,22 +179,18 @@ function showTab(tab) {
     case 'servicos':        renderServicos();       break;
     case 'eventos':         renderEventos();        break;
     case 'financeiro':      renderFinanceiro();     break;
+    case 'experimentais':   renderExperimentais();  break;
     default:                renderDashboard();
   }
 }
 
 function toggleSidebar() {
-  const sidebar = document.getElementById('sidebar');
-  const overlay = document.getElementById('sidebar-overlay');
-  const menuBtn = document.getElementById('menu-btn');
-  const isOpen = sidebar.classList.toggle('open');
-  overlay.classList.toggle('show', isOpen);
-  menuBtn.classList.toggle('sidebar-open', isOpen);
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('show');
 }
 function closeSidebar() {
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('sidebar-overlay').classList.remove('show');
-  document.getElementById('menu-btn').classList.remove('sidebar-open');
 }
 
 // ============================================================
@@ -1201,6 +1198,14 @@ async function loadPresencaForm() {
             <label>Observações</label>
             <textarea name="notas" rows="2" placeholder="Observações sobre a aula…">${existingAula?.notas||''}</textarea>
           </div>
+
+          <div class="exp-section">
+            <div class="exp-section-header">
+              <span>🔬 Alunos Experimentais nesta aula</span>
+              <button type="button" class="btn btn-sm btn-secondary" onclick="addExpRow()">+ Adicionar</button>
+            </div>
+            <div id="exp-rows"></div>
+          </div>
         </div>
         <div class="card-footer">
           <button type="submit" class="btn btn-primary btn-full">
@@ -1209,6 +1214,15 @@ async function loadPresencaForm() {
         </div>
       </form>
     </div>`;
+
+  // Load existing experimentais for this aula
+  if (existingAula?.id) {
+    const { data: exps } = await db.from('experimentais')
+      .select('*').eq('data_aula', dataVal)
+      .eq('professor_id', user.id)
+      .in('status', ['pendente','convertido']);
+    exps?.forEach(exp => addExpRow(exp));
+  }
 }
 
 function updateToggle(radio) {
@@ -1269,7 +1283,9 @@ async function savePresenca(e) {
     }));
     if (presRows.length) await db.from('presencas').insert(presRows);
 
+    await saveExperimentais(turmaId, dataVal);
     showToast('Presença registrada! ✅','success');
+    _expCount = 0;
     document.getElementById('sel-turma').value = '';
     document.getElementById('presenca-form-area').innerHTML = '';
   } catch (err) {
@@ -1364,6 +1380,74 @@ async function loadHistorico() {
 function toggleHistoricoDetail(id) {
   const el = document.getElementById(`det-${id}`);
   if (el) el.style.display = el.style.display==='none' ? 'block' : 'none';
+}
+
+// ============================================================
+// EXPERIMENTAIS — helpers
+// ============================================================
+let _expCount = 0;
+function addExpRow(data = null) {
+  const n = ++_expCount;
+  const container = document.getElementById('exp-rows');
+  if (!container) return;
+  const row = document.createElement('div');
+  row.className = 'exp-row';
+  row.id = `exp-row-${n}`;
+  row.innerHTML = `
+    <div class="form-row" style="align-items:flex-end;gap:10px;margin-bottom:10px">
+      <div class="form-group" style="flex:2;margin:0">
+        <label>Nome *</label>
+        <input type="text" name="exp_nome_${n}" value="${esc(data?.nome)}" placeholder="Nome do experimental" required>
+      </div>
+      <div class="form-group" style="flex:1;margin:0">
+        <label>Modalidade</label>
+        <select name="exp_mod_${n}">
+          <option value="group"      ${data?.modalidade==='group'||!data?'selected':''}>Grupo</option>
+          <option value="individual" ${data?.modalidade==='individual'?'selected':''}>Individual</option>
+        </select>
+      </div>
+      <div class="form-group" style="flex:2;margin:0">
+        <label>Email</label>
+        <input type="email" name="exp_email_${n}" value="${esc(data?.email)}" placeholder="email@...">
+      </div>
+      <div class="form-group" style="flex:1.5;margin:0">
+        <label>Telefone</label>
+        <input type="tel" name="exp_tel_${n}" value="${esc(data?.telefone)}" placeholder="(00) 00000-0000">
+      </div>
+      <div class="form-group" style="flex:2;margin:0">
+        <label>Obs</label>
+        <input type="text" name="exp_notas_${n}" value="${esc(data?.notas)}" placeholder="Observações">
+      </div>
+      <button type="button" class="btn btn-sm btn-danger" onclick="removeExpRow(${n})" style="margin-bottom:0;flex-shrink:0">✕</button>
+    </div>`;
+  container.appendChild(row);
+}
+
+function removeExpRow(n) {
+  document.getElementById(`exp-row-${n}`)?.remove();
+}
+
+async function saveExperimentais(turmaId, dataVal) {
+  const rows = document.querySelectorAll('.exp-row');
+  if (!rows.length) return;
+  const inserts = [];
+  rows.forEach(row => {
+    const n = row.id.replace('exp-row-','');
+    const nome = row.querySelector(`[name="exp_nome_${n}"]`)?.value?.trim();
+    if (!nome) return;
+    inserts.push({
+      nome,
+      email:       row.querySelector(`[name="exp_email_${n}"]`)?.value?.trim()||null,
+      telefone:    row.querySelector(`[name="exp_tel_${n}"]`)?.value?.trim()||null,
+      notas:       row.querySelector(`[name="exp_notas_${n}"]`)?.value?.trim()||null,
+      modalidade:  row.querySelector(`[name="exp_mod_${n}"]`)?.value||'group',
+      turma_id:    turmaId||null,
+      professor_id:user.id,
+      data_aula:   dataVal,
+      status:      'pendente',
+    });
+  });
+  if (inserts.length) await db.from('experimentais').insert(inserts);
 }
 
 // ============================================================
@@ -1631,7 +1715,168 @@ async function desmarcarPago(pagId) {
 }
 
 // ============================================================
-// 14. UTILITÁRIOS
+// 14. EXPERIMENTAIS (admin)
+// ============================================================
+async function renderExperimentais() {
+  const { data: exps } = await db.from('experimentais')
+    .select('*,turmas(codigo),profiles(name)')
+    .order('data_aula', { ascending: false });
+
+  _D.exps = {};
+  exps?.forEach(e => { _D.exps[e.id] = e; });
+
+  const pendentes   = exps?.filter(e=>e.status==='pendente')||[];
+  const convertidos = exps?.filter(e=>e.status==='convertido')||[];
+  const descartados = exps?.filter(e=>e.status==='descartado')||[];
+
+  function expRow(e) {
+    const statusBadge = {
+      pendente:   '<span class="badge badge-warning">Pendente</span>',
+      convertido: '<span class="badge badge-success">Convertido</span>',
+      descartado: '<span class="badge badge-gray">Descartado</span>',
+    }[e.status] || '';
+    const actions = e.status === 'pendente' ? `
+      <button class="btn btn-sm btn-primary"  onclick="openModalConverterExp('${e.id}')">Converter ✓</button>
+      <button class="btn btn-sm btn-danger"   onclick="descartarExp('${e.id}')">Descartar</button>` : '';
+    return `<tr>
+      <td>${formatDate(e.data_aula)}</td>
+      <td><strong>${e.nome}</strong></td>
+      <td>${e.email||'—'}</td>
+      <td>${e.telefone||'—'}</td>
+      <td><span class="badge badge-info">${modalLabel(e.modalidade)}</span></td>
+      <td>${e.turmas?.codigo||'Individual'}</td>
+      <td>${e.profiles?.name||'—'}</td>
+      <td>${e.notas||'—'}</td>
+      <td>${statusBadge}</td>
+      <td><div class="action-btns">${actions}</div></td>
+    </tr>`;
+  }
+
+  setContent(`
+    <div class="page-header">
+      <h2>Experimentais 🔬</h2>
+      <span class="text-muted">${pendentes.length} pendente(s)</span>
+    </div>
+
+    <div class="stats-grid" style="margin-bottom:22px">
+      ${statCard('⏳', pendentes.length,   'Pendentes')}
+      ${statCard('✅', convertidos.length, 'Convertidos')}
+      ${statCard('❌', descartados.length, 'Descartados')}
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h3>Todos os Experimentais</h3>
+      </div>
+      <div class="table-wrapper">
+        <table class="table">
+          <thead><tr>
+            <th>Data</th><th>Nome</th><th>Email</th><th>Telefone</th>
+            <th>Modalidade</th><th>Turma</th><th>Professor</th><th>Obs</th>
+            <th>Status</th><th>Ações</th>
+          </tr></thead>
+          <tbody>
+            ${exps?.length
+              ? exps.map(expRow).join('')
+              : '<tr><td colspan="10" class="empty-state">Nenhum experimental registrado ainda.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>`);
+}
+
+async function openModalConverterExp(id) {
+  const e = _D.exps?.[id];
+  if (!e) return;
+  const { data: turmas } = await db.from('turmas').select('id,codigo,modalidade').eq('status','active').order('codigo');
+
+  openModal(`
+    <div class="modal-header">
+      <h3>Converter em Aluno — ${e.nome}</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <form onsubmit="confirmarConverterExp(event)" style="padding:20px">
+      <input type="hidden" name="exp_id" value="${e.id}">
+      <div class="form-group">
+        <label>Nome *</label>
+        <input type="text" name="nome" value="${esc(e.nome)}" required>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" name="email" value="${esc(e.email)}">
+        </div>
+        <div class="form-group">
+          <label>Telefone</label>
+          <input type="tel" name="telefone" value="${esc(e.telefone)}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Turma *</label>
+        <select name="turma_id" required>
+          <option value="">— Selecione a turma —</option>
+          ${turmas?.map(t=>`<option value="${t.id}" ${e.turma_id===t.id?'selected':''}>${t.codigo} (${modalLabel(t.modalidade)})</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Observações</label>
+        <textarea name="notas" rows="2">${esc(e.notas)}</textarea>
+      </div>
+      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">✓ Confirmar Conversão</button>
+      </div>
+    </form>`);
+}
+
+async function confirmarConverterExp(e) {
+  e.preventDefault();
+  const fd      = new FormData(e.target);
+  const expId   = fd.get('exp_id');
+  const turmaId = fd.get('turma_id');
+  const btn     = e.target.querySelector('[type=submit]');
+  btn.disabled  = true; btn.textContent = 'Convertendo…';
+
+  try {
+    // 1. Criar aluno
+    const { data: novoAluno, error: errAluno } = await db.from('alunos').insert({
+      nome:     fd.get('nome').trim(),
+      email:    fd.get('email').trim()||null,
+      telefone: fd.get('telefone').trim()||null,
+      notas:    fd.get('notas').trim()||null,
+    }).select().single();
+    if (errAluno) throw errAluno;
+
+    // 2. Matricular em turma (obrigatório)
+    const { error: errTA } = await db.from('turma_alunos').insert({
+      turma_id: turmaId, aluno_id: novoAluno.id
+    });
+    if (errTA) throw errTA;
+
+    // 3. Marcar experimental como convertido
+    await db.from('experimentais').update({
+      status:   'convertido',
+      aluno_id: novoAluno.id,
+    }).eq('id', expId);
+
+    showToast(`${novoAluno.nome} convertido em aluno! ✅`, 'success');
+    closeModal();
+    renderExperimentais();
+  } catch (err) {
+    showToast('Erro: ' + err.message, 'error');
+    btn.disabled = false; btn.textContent = '✓ Confirmar Conversão';
+  }
+}
+
+async function descartarExp(id) {
+  if (!confirm('Marcar este experimental como descartado?')) return;
+  await db.from('experimentais').update({ status: 'descartado' }).eq('id', id);
+  showToast('Descartado', 'success');
+  renderExperimentais();
+}
+
+// ============================================================
+// 15. UTILITÁRIOS
 // ============================================================
 function setContent(html) {
   const el = document.getElementById('content');

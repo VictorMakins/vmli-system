@@ -988,12 +988,23 @@ select option { background: #111829; color: #F8FAFC; }
 }
 
 /* â”€â”€â”€ Action cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-.actions-grid { gap: 14px; }
+.actions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
 
 .action-card {
-  min-height: 116px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px;
+  min-height: 132px;
   border-radius: var(--r-lg);
   cursor: pointer;
+  width: 100%;
+  text-align: left;
 }
 
 .action-card:hover {
@@ -1011,18 +1022,37 @@ select option { background: #111829; color: #F8FAFC; }
 }
 
 .action-icon {
-  width: 46px;
-  height: 46px;
+  width: 56px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 16px;
+  border-radius: 12px;
   background:
     linear-gradient(145deg,
-      rgba(255, 255, 255, 0.14),
-      rgba(255, 255, 255, 0.05));
+      rgba(255, 255, 255, 0.12),
+      rgba(255, 255, 255, 0.04));
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: var(--spec-2), var(--s-xs);
+  flex: 0 0 auto;
+}
+
+.action-card .action-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 auto;
+}
+
+.action-card .action-title {
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: var(--t-100);
+}
+
+.action-card .action-sub {
+  font-size: 0.92rem;
+  color: var(--t-60);
 }
 
 /* â”€â”€â”€ Turmas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */

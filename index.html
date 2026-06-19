@@ -24,14 +24,16 @@
       </div>
       <form id="login-form">
         <div class="form-group">
-          <label>Email</label>
+          <label for="login-email">Email</label>
           <input type="email" id="login-email" placeholder="seu@email.com" required autocomplete="email">
         </div>
         <div class="form-group">
-          <label>Senha</label>
+          <label for="login-password">Senha</label>
           <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password">
         </div>
-        <button type="submit" class="btn btn-primary btn-full" id="login-btn">Entrar</button>
+        <div class="form-group" style="margin-bottom: 8px; margin-top: 6px;">
+          <button type="submit" class="btn btn-primary btn-full" id="login-btn">Entrar</button>
+        </div>
         <button type="button" class="btn-link" id="forgot-btn">Esqueci minha senha</button>
       </form>
     </div>

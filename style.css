@@ -219,7 +219,10 @@ h1, h2, h3, h4, h5, h6 {
   min-height: 100dvh;
   width: 100%;
   overflow-x: hidden;
+  position: relative;
 }
+/* When JS shows the app */
+#app.visible { display: block; }
 
 .main-wrapper {
   position: relative;
@@ -1486,7 +1489,7 @@ select option { background: #111829; color: #F8FAFC; }
 .main-wrapper {
   position: relative;
   z-index: 1;
-  margin-left: 260px;
+  margin-left: 0;
   min-height: 100dvh;
 }
 
@@ -1501,9 +1504,7 @@ select option { background: #111829; color: #F8FAFC; }
   .sidebar { width: 240px; }
 }
 
-@media (max-width: 768px) {
-  .main-wrapper { margin-left: 0; }
-}
+/* main-wrapper always full width — sidebar floats as overlay */
 
 .menu-btn {
   background: rgba(255, 255, 255, 0.08);

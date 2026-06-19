@@ -124,7 +124,7 @@ body, input, button, textarea, select, label, a, p, span, small, strong, em, li,
 }
 
 body * {
-  color: var(--t-100) !important;
+  color: var(--t-100);
 }
 
 /* Force Apple-like system font across all UI elements */
@@ -1623,9 +1623,8 @@ select option { background: #111829; color: #F8FAFC; }
   }
 }
 
-/* Site-wide white typography */
-body,
-body * {
+/* Site-wide white typography — sem !important para não bloquear overrides */
+body {
   color: #fff;
 }
 
@@ -1888,58 +1887,52 @@ textarea::placeholder {
   max-width: 340px;
 }
 
-/* --- Dark text overrides (elements with light/colored backgrounds) --- */
-/* btn-primary: gold background → texto escuro */
-.btn-primary,
-.btn-primary:hover:not(:disabled),
-.btn-primary * {
+/* --- Dark text overrides (elements with gold/colored backgrounds) ---
+   Uses body prefix to beat the body * !important rule via cascade order  */
+
+body .btn-primary,
+body .btn-primary:hover:not(:disabled),
+body .btn-primary span,
+body .btn-primary strong,
+body button.btn-primary {
   color: #111827 !important;
   text-shadow: none !important;
 }
 
-/* role-badge no topbar: gold background → texto escuro */
-.role-badge,
-.role-badge * {
+body #role-badge,
+body .role-badge,
+body .role-badge span {
   color: #111827 !important;
   text-shadow: none !important;
 }
 
-/* role-admin badge → texto escuro */
-.role-admin,
-.badge-primary,
-.role-admin *,
-.badge-primary * {
+body .role-admin,
+body .badge-primary,
+body .role-admin span,
+body .badge-primary span {
   color: #111827 !important;
   text-shadow: none !important;
 }
 
-/* mini-avatar / user-avatar: fundo gold → texto escuro */
-.user-avatar,
-.mini-avatar,
-.user-avatar *,
-.mini-avatar * {
+body .user-avatar,
+body .mini-avatar {
   color: #111827 !important;
   text-shadow: none !important;
 }
 
-/* pa-btn ativo (presença): fundo gold → texto escuro */
-.pa-btn.active-p,
-.pa-btn.active-p * {
+body .pa-btn.active-p,
+body .pa-btn.active-p span {
   color: #111827 !important;
   text-shadow: none !important;
 }
 
-/* historico-date / date-badge: fundo gold → texto escuro */
-.historico-date,
-.date-badge,
-.historico-date *,
-.date-badge * {
+body .historico-date,
+body .date-badge {
   color: #111827 !important;
   text-shadow: none !important;
 }
 
-/* fin-grand-total valor: fundo gold → texto escuro */
-.fin-grand-total span:last-child {
+body .fin-grand-total span:last-child {
   color: #111827 !important;
   text-shadow: none !important;
 }

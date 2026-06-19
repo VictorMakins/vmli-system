@@ -1644,3 +1644,302 @@ textarea::placeholder {
   color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.46);
 }
+
+/* --- Card component --- */
+.card {
+  position: relative;
+  background:
+    linear-gradient(145deg,
+      rgba(255, 255, 255, 0.09) 0%,
+      rgba(255, 255, 255, 0.04) 50%,
+      rgba(255, 255, 255, 0.02) 100%);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-xl);
+  box-shadow: var(--s-md), var(--spec-1);
+  backdrop-filter: var(--blur-md);
+  -webkit-backdrop-filter: var(--blur-md);
+  overflow: hidden;
+  margin-bottom: 22px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 22px 16px;
+  border-bottom: 1px solid var(--border-1);
+  background:
+    linear-gradient(135deg,
+      rgba(255, 255, 255, 0.07) 0%,
+      rgba(255, 255, 255, 0.02) 100%);
+}
+
+.card-header h3,
+.card-header h4 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--t-100);
+}
+
+.card-body {
+  padding: 6px 0;
+}
+
+.card-footer {
+  padding: 14px 22px;
+  border-top: 1px solid var(--border-1);
+  background:
+    linear-gradient(135deg,
+      rgba(255, 255, 255, 0.04) 0%,
+      rgba(255, 255, 255, 0.01) 100%);
+}
+
+/* --- List items inside cards --- */
+.list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--border-1);
+  transition: background var(--dur-fast) ease;
+}
+
+.list-item:last-child {
+  border-bottom: none;
+}
+
+.list-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.list-item-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.list-item-title {
+  font-size: 0.97rem;
+  font-weight: 700;
+  color: var(--t-100);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.list-item-sub {
+  font-size: 0.82rem;
+  color: var(--t-60);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.list-item-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* --- Quick actions section --- */
+.quick-actions {
+  margin-top: 8px;
+}
+
+.quick-actions h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 14px;
+  color: var(--t-80);
+}
+
+/* --- Action card inner layout (icon + text stacked) --- */
+.action-card {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 10px;
+}
+
+.action-card .action-icon,
+.action-card > span:first-child {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.action-card > span:last-child {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--t-80);
+}
+
+/* --- Action button groups (inside tables) --- */
+.action-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* --- Form row (side by side fields) --- */
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 480px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Empty state --- */
+.empty-state {
+  padding: 32px 22px;
+  text-align: center;
+  color: var(--t-40);
+  font-size: 0.92rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+}
+
+/* --- Loading spinner --- */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+}
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(245, 194, 0, 0.16);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* --- Page header --- */
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.page-header h2 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  color: var(--t-100);
+}
+
+.page-header .text-muted {
+  color: var(--t-40);
+  font-size: 0.92rem;
+  white-space: nowrap;
+}
+
+/* --- Alert component --- */
+.alert {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 18px;
+  border-radius: var(--r-md);
+  margin-bottom: 18px;
+  font-size: 0.92rem;
+}
+
+.alert-warning {
+  background: rgba(245, 158, 11, 0.14);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  color: #FDE68A;
+}
+
+/* --- Toast padding (ensure text readable) --- */
+.toast {
+  padding: 12px 18px;
+  font-size: 0.9rem;
+  min-width: 220px;
+  max-width: 340px;
+}
+
+/* --- Dark text overrides (elements with light/colored backgrounds) --- */
+/* btn-primary: gold background → texto escuro */
+.btn-primary,
+.btn-primary:hover:not(:disabled),
+.btn-primary * {
+  color: #111827 !important;
+  text-shadow: none !important;
+}
+
+/* role-badge no topbar: gold background → texto escuro */
+.role-badge,
+.role-badge * {
+  color: #111827 !important;
+  text-shadow: none !important;
+}
+
+/* role-admin badge → texto escuro */
+.role-admin,
+.badge-primary,
+.role-admin *,
+.badge-primary * {
+  color: #111827 !important;
+  text-shadow: none !important;
+}
+
+/* mini-avatar / user-avatar: fundo gold → texto escuro */
+.user-avatar,
+.mini-avatar,
+.user-avatar *,
+.mini-avatar * {
+  color: #111827 !important;
+  text-shadow: none !important;
+}
+
+/* pa-btn ativo (presença): fundo gold → texto escuro */
+.pa-btn.active-p,
+.pa-btn.active-p * {
+  color: #111827 !important;
+  text-shadow: none !important;
+}
+
+/* historico-date / date-badge: fundo gold → texto escuro */
+.historico-date,
+.date-badge,
+.historico-date *,
+.date-badge * {
+  color: #111827 !important;
+  text-shadow: none !important;
+}
+
+/* fin-grand-total valor: fundo gold → texto escuro */
+.fin-grand-total span:last-child {
+  color: #111827 !important;
+  text-shadow: none !important;
+}

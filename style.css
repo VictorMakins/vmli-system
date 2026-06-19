@@ -1950,3 +1950,325 @@ body .fin-grand-total span:last-child {
   border-color: rgba(245, 194, 0, 0.32);
   box-shadow: var(--s-xs), var(--spec-2), 0 0 0 1px rgba(245,194,0,0.12);
 }
+
+/* --- Experimentais section inside presença form --- */
+.exp-section {
+  margin-top: 24px;
+  border-top: 1px solid var(--border-1);
+  padding-top: 16px;
+}
+
+.exp-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--t-80);
+}
+
+.exp-row {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-sm);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+
+/* filters bar (used in histórico + financeiro) */
+.filters-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.filters-bar select {
+  min-width: 130px;
+}
+
+/* search input */
+.search-input {
+  width: 100%;
+  padding: 11px 16px;
+  font-size: 0.95rem;
+  border-radius: var(--r-sm);
+  margin-bottom: 0;
+}
+
+/* presença list */
+.presenca-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.presenca-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+}
+
+.aluno-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.pa-toggle {
+  display: flex;
+  gap: 6px;
+}
+
+.pa-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  min-height: 34px;
+  padding: 6px 12px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+}
+
+.pa-btn input[type="radio"] {
+  display: none;
+}
+
+/* historico items */
+.historico-item {
+  border-radius: var(--r-sm);
+  margin-bottom: 8px;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.historico-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  gap: 12px;
+}
+
+.historico-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.historico-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.historico-turma {
+  font-weight: 700;
+  color: var(--t-80);
+}
+
+.historico-detail {
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--border-1);
+}
+
+.presenca-mini-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.presenca-chip {
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.chip-p {
+  background: rgba(45,212,191,0.14);
+  color: #5EEAD4;
+  border: 1px solid rgba(45,212,191,0.22);
+}
+
+.chip-a {
+  background: rgba(248,113,113,0.14);
+  color: #FCA5A5;
+  border: 1px solid rgba(248,113,113,0.22);
+}
+
+.material-info, .aula-notas {
+  font-size: 0.82rem;
+  color: var(--t-60);
+  margin-top: 6px;
+}
+
+/* fin-summary-card layout */
+.fin-summary-card {
+  padding: 24px;
+  border-radius: var(--r-xl);
+  margin-bottom: 18px;
+}
+
+.fin-month-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin-bottom: 8px;
+}
+
+.fin-status-badge {
+  margin-bottom: 18px;
+}
+
+.fin-calc {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: var(--r-md);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border-1);
+  margin-bottom: 12px;
+}
+
+.fin-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.92rem;
+  color: var(--t-80);
+}
+
+.fin-total {
+  border-top: 1px solid var(--border-1);
+  padding-top: 10px;
+  margin-top: 4px;
+  font-weight: 700;
+  color: var(--t-100);
+}
+
+.fin-grand-total {
+  border-top: 2px solid rgba(245,194,0,0.30);
+  padding-top: 12px;
+  margin-top: 6px;
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.fin-notas {
+  padding: 12px 16px;
+  border-radius: 0 var(--r-xs) var(--r-xs) 0;
+  font-size: 0.88rem;
+}
+
+.text-danger  { color: #FCA5A5 !important; }
+.text-success { color: #5EEAD4 !important; }
+.text-muted   { color: var(--t-40) !important; }
+
+/* user-cell in tables */
+.user-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mini-avatar {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+/* btn-link-primary (inside tables) */
+.btn-link-primary {
+  background: none;
+  border: none;
+  color: var(--gold-bright);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 2px 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.btn-link-primary:hover { color: var(--t-100); }
+
+/* stats compact variant */
+.stats-compact {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+/* alert-info */
+.alert-info {
+  background: rgba(96,165,250,0.12);
+  border: 1px solid rgba(96,165,250,0.24);
+  color: #BFDBFE;
+}
+
+/* badge-lg */
+.badge-lg {
+  font-size: 0.9rem;
+  padding: 8px 16px;
+  min-height: 36px;
+}
+
+/* turmas grid */
+.turmas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 18px;
+}
+
+.turma-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
+}
+
+.turma-details {
+  padding: 0 20px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 0.88rem;
+  color: var(--t-60);
+}
+
+.turma-alunos {
+  padding: 14px 20px;
+  border-top: 1px solid var(--border-1);
+}
+
+.alunos-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.turma-card-footer {
+  padding: 14px 20px 18px;
+}
+
+/* empty-card fallback */
+.empty-card {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--t-40);
+}

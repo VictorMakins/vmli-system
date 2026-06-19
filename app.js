@@ -706,7 +706,13 @@ async function saveProfessor(e) {
     closeModal();
     renderProfessores();
   } catch (err) {
-    showToast('Erro: ' + err.message, 'error');
+    let msg = 'Erro: ' + err.message;
+    if (err.message?.includes('rate limit') || err.message?.includes('email rate')) {
+      msg = '⚠️ Limite de cadastros atingido. Aguarde alguns minutos e tente novamente.';
+    } else if (err.message?.includes('already registered') || err.message?.includes('already been registered')) {
+      msg = 'Este email já está cadastrado no sistema.';
+    }
+    showToast(msg, 'error');
     btn.disabled = false; btn.textContent = id ? 'Salvar' : 'Criar Professor';
   }
 }

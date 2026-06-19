@@ -25,6 +25,15 @@
   --bg-2:         #0B1022;
   --bg-3:         #111829;
   --bg-4:         #161F33;
+  --app-bg:
+    radial-gradient(ellipse 62% 52% at 16% 18%, rgba(245, 194, 0, 0.18), transparent 58%),
+    radial-gradient(ellipse 56% 46% at 88% 12%, rgba(100, 160, 255, 0.18), transparent 60%),
+    radial-gradient(ellipse 60% 52% at 52% 102%, rgba(45, 212, 191, 0.11), transparent 58%),
+    linear-gradient(145deg, #03060E 0%, #060A14 46%, #0B1022 100%);
+  --sidebar-bg:
+    radial-gradient(ellipse 88% 44% at 4% 8%, rgba(245, 194, 0, 0.15), transparent 62%),
+    radial-gradient(ellipse 88% 54% at 100% 24%, rgba(100, 160, 255, 0.10), transparent 66%),
+    linear-gradient(180deg, rgba(3, 6, 14, 0.98) 0%, rgba(6, 10, 20, 0.97) 48%, rgba(11, 16, 34, 0.96) 100%);
 
   /* Glass surfaces â€” true transparency tiers */
   --glass-1:      rgba(255, 255, 255, 0.04);   /* subtlest: behind-the-scenes */
@@ -93,24 +102,29 @@
 }
 
 html {
-  background: var(--void);
+  background: var(--bg-base);
   scroll-behavior: smooth;
+  color-scheme: dark;
 }
 
 body {
-  background:
-    radial-gradient(circle at 20% 12%, rgba(255,255,255,0.04), transparent 20%),
-    radial-gradient(circle at 75% 8%, rgba(255,255,255,0.03), transparent 18%),
-    radial-gradient(circle at 50% 80%, rgba(255,255,255,0.02), transparent 22%),
-    linear-gradient(180deg, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.98) 100%);
+  background: var(--app-bg);
   background-attachment: fixed;
-  color: var(--t-100);
+  color: #fff;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 16px;
   min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+}
+
+body, input, button, textarea, select, label, a, p, span, small, strong, em, li, th, td, option, optgroup, h1, h2, h3, h4, h5, h6 {
+  color: #fff;
+}
+
+body * {
+  color: var(--t-100) !important;
 }
 
 /* Force Apple-like system font across all UI elements */
@@ -198,7 +212,28 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* Hide the main app until auth shows it to avoid flicker */
-#app { display: none; }
+#app {
+  display: none;
+  background: transparent;
+  color: #fff;
+  min-height: 100dvh;
+  width: 100%;
+}
+
+.main-wrapper {
+  position: relative;
+  z-index: 1;
+  margin-left: 260px;
+  min-height: 100dvh;
+  background: transparent;
+}
+
+.content {
+  width: 100%;
+  max-width: 1340px;
+  margin: 0 auto;
+  padding: 32px 34px 44px;
+}
 
 /* Modal overlay: hidden by default, centered content */
 #modal-overlay {
@@ -284,18 +319,14 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   flex-direction: column;
   padding: 24px 0 18px;
-  background:
-    linear-gradient(180deg,
-      rgba(255, 255, 255, 0.10) 0%,
-      rgba(255, 255, 255, 0.04) 45%,
-      rgba(255, 255, 255, 0.02) 100%),
-    rgba(10, 16, 32, 0.92);
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--sidebar-bg);
+  border-right: 1px solid rgba(245, 194, 0, 0.16);
   box-shadow:
-    24px 0 80px rgba(0, 0, 0, 0.28),
-    inset -1px 0 0 rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(28px);
-  -webkit-backdrop-filter: blur(28px);
+    30px 0 90px rgba(0, 0, 0, 0.42),
+    10px 0 50px rgba(245, 194, 0, 0.07),
+    inset -1px 0 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(34px) saturate(170%);
+  -webkit-backdrop-filter: blur(34px) saturate(170%);
   z-index: 15;
   transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base);
 }
@@ -311,8 +342,8 @@ h1, h2, h3, h4, h5, h6 {
   background: linear-gradient(
     to bottom,
     transparent,
-    rgba(255, 255, 255, 0.16) 20%,
-    rgba(255, 255, 255, 0.08) 72%,
+    rgba(245, 194, 0, 0.42) 18%,
+    rgba(147, 197, 253, 0.20) 58%,
     transparent
   );
   pointer-events: none;
@@ -384,7 +415,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .sidebar-user .user-role {
-  color: var(--t-60);
+  color: #fff;
   font-size: 0.92rem;
 }
 
@@ -410,7 +441,7 @@ h1, h2, h3, h4, h5, h6 {
   margin: 6px 12px;
   padding: 14px 16px;
   border-radius: 14px;
-  color: rgba(255,255,255,0.78);
+  color: #fff;
   transition:
     background var(--dur-base) var(--ease-out),
     color      var(--dur-fast) ease,
@@ -430,7 +461,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
   color: #fff;
   transform: translateX(2px);
   box-shadow: var(--s-xs), var(--spec-1);
@@ -484,9 +515,9 @@ h1, h2, h3, h4, h5, h6 {
   gap: 16px;
   background:
     linear-gradient(180deg,
-      rgba(255, 255, 255, 0.06) 0%,
-      rgba(255, 255, 255, 0.04) 35%,
-      rgba(255, 255, 255, 0.02) 100%);
+      rgba(255, 255, 255, 0.04) 0%,
+      rgba(6, 10, 20, 0.82) 35%,
+      rgba(6, 10, 20, 0.95) 100%);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.05),
@@ -793,7 +824,7 @@ h1, h2, h3, h4, h5, h6 {
       #FFE47A 0%,
       var(--gold) 50%,
       var(--gold-deep) 100%);
-  color: #0A0E1A;
+  color: #fff;
   font-weight: 700;
   box-shadow:
     var(--s-gold-sm),
@@ -949,7 +980,7 @@ select option { background: #111829; color: #F8FAFC; }
 
 .badge-primary, .role-admin {
   background: linear-gradient(145deg, #FFE27A, var(--gold));
-  color: #111827;
+  color: #fff;
   box-shadow: var(--s-gold-sm), var(--spec-2);
 }
 
@@ -1404,4 +1435,26 @@ select option { background: #111829; color: #F8FAFC; }
   .turma-card, .fin-summary-card, .modal-box, .login-card {
     background: rgba(11, 16, 34, 0.96);
   }
+}
+
+/* Site-wide white typography */
+body,
+body * {
+  color: #fff;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(255, 255, 255, 0.56);
+}
+
+.btn-primary,
+.badge-primary,
+.role-admin,
+.pa-btn.active-p,
+.historico-date,
+.date-badge,
+.fin-grand-total span:last-child {
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.46);
 }

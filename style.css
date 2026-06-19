@@ -218,6 +218,7 @@ h1, h2, h3, h4, h5, h6 {
   color: #fff;
   min-height: 100dvh;
   width: 100%;
+  overflow-x: hidden;
 }
 
 .main-wrapper {
@@ -226,7 +227,6 @@ h1, h2, h3, h4, h5, h6 {
   margin-left: 0;
   min-height: 100dvh;
   background: transparent;
-  transition: margin-left var(--dur-base) var(--ease-out);
 }
 
 .content {
@@ -1468,12 +1468,12 @@ select option { background: #111829; color: #F8FAFC; }
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.56);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  opacity: 0;
-  transition: opacity var(--dur-fast) var(--ease-out);
-  z-index: 8;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 14;  /* just below sidebar (15), above everything else */
   pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-out);
 }
 
 .sidebar-overlay.show {

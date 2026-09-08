@@ -2273,3 +2273,169 @@ body .fin-grand-total span:last-child {
   text-align: center;
   color: var(--t-40);
 }
+
+
+/* =====================================================================
+   PAGAMENTOS DE ALUNOS + CRM + PERMISSÕES  (adicionado)
+   ===================================================================== */
+
+/* --- role secretaria --- */
+.role-secretaria { background: rgba(147, 197, 253, 0.22); color: #DBEAFE !important; border-color: rgba(147,197,253,0.35); }
+
+/* --- toolbar + chips (filtros) --- */
+.toolbar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.toolbar .search-input { flex: 1 1 260px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  padding: 7px 14px; border-radius: var(--r-pill); font-size: 0.82rem; font-weight: 600;
+  background: var(--glass-2); color: var(--t-60); border: 1px solid var(--border-1);
+  cursor: pointer; transition: all var(--dur-fast) var(--ease-out); font-family: inherit;
+}
+.chip:hover { background: var(--glass-3); color: var(--t-100); }
+.chip.active { background: var(--gold-muted); color: var(--gold-bright); border-color: var(--border-gold); }
+
+/* --- linhas clicáveis / status das parcelas --- */
+.row-click { cursor: pointer; }
+.row-click:hover { color: var(--gold-bright); }
+tr.row-atrasada td:first-child { box-shadow: inset 3px 0 0 #FB4763; }
+tr.row-pago td:first-child     { box-shadow: inset 3px 0 0 #2DD4BF; }
+tr.row-suspensa td             { opacity: 0.7; }
+tr.row-cancelada td            { opacity: 0.45; text-decoration: line-through; }
+tr.row-cancelada td:last-child { text-decoration: none; }
+
+/* --- whatsapp --- */
+.wa-btn { text-decoration: none; }
+.wa-icon { text-decoration: none; margin-left: 4px; font-size: 1rem; opacity: 0.85; }
+.wa-icon:hover { opacity: 1; transform: scale(1.15); display: inline-block; }
+
+/* --- navegação de mês --- */
+.month-nav { display: flex; align-items: center; gap: 10px; }
+.month-nav strong { min-width: 150px; text-align: center; font-size: 1.02rem; }
+
+/* --- ficha do aluno --- */
+.btn-back { display: inline-block; margin-bottom: 12px; font-size: 0.9rem; }
+.ficha-header {
+  display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 20px 22px; margin-bottom: 16px;
+}
+.ficha-id { display: flex; align-items: center; gap: 16px; }
+.ficha-id h2 { margin: 0 0 6px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 1.35rem; }
+.ficha-meta { display: flex; gap: 12px; flex-wrap: wrap; font-size: 0.88rem; color: var(--t-60); align-items: center; }
+.ficha-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.user-avatar.big { width: 56px; height: 56px; font-size: 1.25rem; flex-shrink: 0; }
+
+.tabs { display: flex; gap: 4px; margin-bottom: 14px; border-bottom: 1px solid var(--border-1); overflow-x: auto; }
+.tab-btn {
+  padding: 10px 16px; background: none; border: none; border-bottom: 2px solid transparent;
+  color: var(--t-60); font-weight: 600; font-size: 0.92rem; cursor: pointer; white-space: nowrap; font-family: inherit;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+.tab-btn:hover { color: var(--t-100); }
+.tab-btn.active { color: var(--gold-bright); border-bottom-color: var(--gold); }
+
+.info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px 22px; }
+.info-item { display: flex; flex-direction: column; gap: 3px; }
+.info-item.full { grid-column: 1 / -1; }
+.info-label { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--t-40); font-weight: 600; }
+.info-value { font-size: 0.95rem; color: var(--t-80); }
+
+.progress {
+  position: relative; height: 26px; border-radius: var(--r-pill); background: var(--glass-2);
+  border: 1px solid var(--border-1); overflow: hidden; margin-bottom: 16px;
+}
+.progress-bar {
+  height: 100%; background: linear-gradient(90deg, #2DD4BF, #5EEAD4); border-radius: var(--r-pill);
+  transition: width var(--dur-slow) var(--ease-out);
+}
+.progress span {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 0.78rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+.plano-box {
+  margin-top: 14px; padding: 14px 16px; border-radius: var(--r-sm);
+  background: var(--glass-1); border: 1px dashed var(--border-gold);
+}
+.plano-box summary { cursor: pointer; font-weight: 600; color: var(--gold-bright); margin-bottom: 10px; }
+.plano-total { text-align: right; color: var(--t-60); font-size: 0.9rem; margin-top: -6px; }
+.plano-total strong { color: var(--gold-bright); font-size: 1.05rem; }
+
+/* --- timeline (histórico / notas) --- */
+.timeline { display: flex; flex-direction: column; gap: 10px; }
+.tl-item { display: flex; gap: 12px; align-items: flex-start; }
+.tl-icon {
+  width: 30px; height: 30px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: var(--glass-3); border: 1px solid var(--border-2); font-size: 0.85rem;
+}
+.tl-body { flex: 1; padding-bottom: 10px; border-bottom: 1px solid var(--border-1); }
+.tl-item:last-child .tl-body { border-bottom: none; }
+.tl-text { font-size: 0.93rem; color: var(--t-80); }
+.tl-meta { font-size: 0.76rem; color: var(--t-40); margin-top: 3px; }
+
+.nota-form { display: flex; gap: 8px; margin-bottom: 14px; }
+.nota-form input { flex: 1; margin: 0; }
+
+/* --- CRM Kanban --- */
+.kanban {
+  display: flex; gap: 12px; overflow-x: auto; padding-bottom: 12px; align-items: flex-start;
+  scroll-snap-type: x proximity;
+}
+.kanban-col {
+  flex: 0 0 250px; scroll-snap-align: start; border-radius: var(--r-md);
+  background: var(--glass-1); border: 1px solid var(--border-1); min-height: 200px;
+  transition: background var(--dur-fast);
+}
+.kanban-col.over { background: var(--gold-muted); border-color: var(--border-gold); }
+.kanban-head {
+  display: flex; justify-content: space-between; align-items: center; padding: 12px 14px;
+  font-weight: 700; font-size: 0.86rem; border-bottom: 1px solid var(--border-1);
+}
+.kanban-count {
+  background: var(--glass-3); border-radius: var(--r-pill); padding: 2px 9px; font-size: 0.76rem; color: var(--t-60);
+}
+.kanban-body { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.kanban-empty { text-align: center; color: var(--t-20); padding: 14px; font-size: 0.85rem; }
+.kanban-card {
+  background: var(--glass-2); border: 1px solid var(--border-2); border-radius: var(--r-sm);
+  padding: 12px; cursor: pointer; box-shadow: var(--spec-1); transition: all var(--dur-fast) var(--ease-out);
+}
+.kanban-card:hover { background: var(--glass-3); border-color: var(--border-gold); transform: translateY(-1px); }
+.kanban-card[draggable="true"] { cursor: grab; }
+.kanban-card:active { cursor: grabbing; }
+.kc-title { font-weight: 700; font-size: 0.93rem; margin-bottom: 6px; }
+.kc-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+.kc-tags .badge { font-size: 0.68rem; padding: 2px 8px; }
+.kc-foot { display: flex; justify-content: space-between; align-items: center; font-size: 0.76rem; }
+
+/* --- permissões (switch) --- */
+.perm-list { display: flex; flex-direction: column; gap: 4px; }
+.perm-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 14px;
+  padding: 10px 12px; border-radius: var(--r-xs); cursor: pointer; transition: background var(--dur-fast);
+}
+.perm-row:hover { background: var(--glass-2); }
+.perm-row.disabled { opacity: 0.55; cursor: not-allowed; }
+.perm-label { font-weight: 600; font-size: 0.92rem; }
+.perm-desc { font-size: 0.78rem; color: var(--t-40); }
+.switch { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+  position: absolute; inset: 0; border-radius: var(--r-pill); background: var(--glass-3);
+  border: 1px solid var(--border-2); transition: all var(--dur-fast);
+}
+.slider::before {
+  content: ''; position: absolute; width: 18px; height: 18px; left: 2px; top: 2px; border-radius: 50%;
+  background: #fff; transition: transform var(--dur-fast) var(--ease-out);
+}
+.switch input:checked + .slider { background: var(--gold); border-color: var(--gold-deep); }
+.switch input:checked + .slider::before { transform: translateX(20px); }
+
+.hint { display: block; font-size: 0.78rem; color: var(--t-40); margin-top: 4px; }
+
+@media (max-width: 768px) {
+  .ficha-header { flex-direction: column; align-items: flex-start; }
+  .kanban-col { flex-basis: 82vw; }
+  .info-grid { grid-template-columns: 1fr 1fr; }
+}

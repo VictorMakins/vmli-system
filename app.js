@@ -32,20 +32,43 @@ const NAV = {
   ],
   admin: [
     { id:'dashboard',     icon:'🏠', label:'Dashboard' },
-    { id:'professores',   icon:'👨‍🏫', label:'Professores' },
-    { id:'turmas',        icon:'📚', label:'Turmas' },
     { id:'alunos',        icon:'🎓', label:'Alunos' },
+    { id:'cobrancas',     icon:'💳', label:'Pagamentos de Alunos' },
+    { id:'crm',           icon:'🎯', label:'CRM' },
     { id:'experimentais', icon:'🔬', label:'Experimentais' },
+    { id:'turmas',        icon:'📚', label:'Turmas' },
+    { id:'professores',   icon:'👨‍🏫', label:'Professores' },
     { id:'servicos',      icon:'🛠️', label:'Serviços' },
     { id:'eventos',       icon:'📅', label:'Eventos' },
-    { id:'financeiro',    icon:'💰', label:'Financeiro' },
+    { id:'financeiro',    icon:'💰', label:'Financeiro (Professores)' },
+    { id:'usuarios',      icon:'🔐', label:'Usuários & Permissões' },
+  ],
+  secretaria: [
+    { id:'dashboard',     icon:'🏠', label:'Dashboard' },
+    { id:'alunos',        icon:'🎓', label:'Alunos' },
+    { id:'cobrancas',     icon:'💳', label:'Pagamentos de Alunos' },
+    { id:'crm',           icon:'🎯', label:'CRM' },
+    { id:'experimentais', icon:'🔬', label:'Experimentais' },
+    { id:'turmas',        icon:'📚', label:'Turmas' },
+    { id:'eventos',       icon:'📅', label:'Eventos' },
   ],
   financeiro: [
     { id:'dashboard',  icon:'🏠', label:'Dashboard' },
+    { id:'alunos',     icon:'🎓', label:'Alunos' },
+    { id:'cobrancas',  icon:'💳', label:'Pagamentos de Alunos' },
+    { id:'crm',        icon:'🎯', label:'CRM' },
     { id:'eventos',    icon:'📅', label:'Eventos' },
-    { id:'financeiro', icon:'💰', label:'Financeiro' },
+    { id:'financeiro', icon:'💰', label:'Financeiro (Professores)' },
   ],
 };
+// Itens de menu que dependem de permissão (ver seção 20 — PERMISSÕES)
+const NAV_PERM = { alunos:'alunos_ver', cobrancas:'pagamentos_ver', crm:'crm_ver', usuarios:'__admin' };
+function navAllowed(id) {
+  const p = NAV_PERM[id];
+  if (!p) return true;
+  if (p === '__admin') return profile?.role === 'admin';
+  return can(p);
+}
 
 // ============================================================
 // 3. INIT
@@ -146,7 +169,7 @@ async function handleForgotPassword() {
 // 5. NAVEGAÇÃO
 // ============================================================
 function buildNav() {
-  const items = NAV[profile?.role] || [];
+  const items = (NAV[profile?.role] || []).filter(i => navAllowed(i.id));
   const nav = document.getElementById('sidebar-nav');
   nav.innerHTML = items.map(i =>
     `<a href="#" class="nav-item" data-tab="${i.id}">
@@ -166,6 +189,7 @@ function showTab(tab) {
   const allItems = Object.values(NAV).flat();
   const item = allItems.find(i => i.id === tab);
   document.getElementById('page-title').textContent = item?.label || '';
+  if (NAV_PERM[tab] && !navAllowed(tab)) { semPermissao(); return; }
   document.getElementById('content').innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
 
   switch (tab) {
@@ -180,6 +204,9 @@ function showTab(tab) {
     case 'eventos':         renderEventos();        break;
     case 'financeiro':      renderFinanceiro();     break;
     case 'experimentais':   renderExperimentais();  break;
+    case 'cobrancas':       renderCobrancas();      break;
+    case 'crm':             renderCRM();            break;
+    case 'usuarios':        renderUsuarios();       break;
     default:                renderDashboard();
   }
 }
@@ -198,6 +225,7 @@ function closeSidebar() {
 // ============================================================
 async function renderDashboard() {
   if      (profile?.role === 'admin')      await renderDashboardAdmin();
+  else if (profile?.role === 'secretaria') await renderDashboardSecretaria();
   else if (profile?.role === 'financeiro') await renderDashboardFinanceiro();
   else                                      await renderDashboardProfessor();
 }
@@ -283,6 +311,7 @@ async function renderDashboardAdmin() {
     const professorId = turmaProfessor[r.turma_id];
     if (professorId) profAlunos[professorId] = (profAlunos[professorId]||0) + 1;
   });
+  const snap = await financeSnapshot();
   const topProfs = (professores||[]).map(p => ({
     ...p,
     activeTurmas: profTurmas[p.id] || 0,
@@ -301,6 +330,7 @@ async function renderDashboardAdmin() {
       ${statCard('🎓', alunoCount||0, 'Alunos Cadastrados', "showTab('alunos')")}
       ${statCard('📅', aulasDoMes?.length||0, 'Aulas este mês', "showTab('financeiro')")}
     </div>
+    ${snapshotHTML(snap)}
     ${pendingCount > 0 ? `
       <div class="alert alert-warning">
         ⚠️ <strong>${pendingCount} professor(es)</strong> com pagamento pendente em ${MONTHS[mes]}.
@@ -335,8 +365,14 @@ async function renderDashboardAdmin() {
         <button class="action-card" onclick="showTab('alunos');setTimeout(()=>openModalAluno(null),200)">
           <span class="action-icon">➕</span><span>Novo Aluno</span>
         </button>
+        <button class="action-card" onclick="showTab('crm');setTimeout(()=>openModalLead(null),200)">
+          <span class="action-icon">✨</span><span>Novo Lead</span>
+        </button>
+        <button class="action-card" onclick="showTab('cobrancas')">
+          <span class="action-icon">💳</span><span>Pagamentos</span>
+        </button>
         <button class="action-card" onclick="showTab('financeiro')">
-          <span class="action-icon">💰</span><span>Ver Financeiro</span>
+          <span class="action-icon">💰</span><span>Financeiro</span>
         </button>
       </div>
     </div>`);
@@ -348,12 +384,15 @@ async function renderDashboardFinanceiro() {
   const total    = pags?.reduce((s,p)=>s+(p.total||0),0)||0;
   const pago     = pags?.filter(p=>p.status==='pago').reduce((s,p)=>s+(p.total||0),0)||0;
   const pendente = total-pago;
+  const snap = await financeSnapshot();
 
   setContent(`
     <div class="page-header">
       <h2>Dashboard Financeiro 💰</h2>
       <span class="text-muted">${MONTHS[mes]} ${ano}</span>
     </div>
+    ${snapshotHTML(snap)}
+    <h3 style="margin:8px 0 12px">Pagamento de Professores</h3>
     <div class="stats-grid">
       ${statCard('💵', formatCurrency(total), `Total ${MONTHS[mes]}`)}
       ${statCard('✅', formatCurrency(pago), 'Pago')}
@@ -670,35 +709,11 @@ async function saveProfessor(e) {
       }
       showToast('Professor atualizado!', 'success');
     } else {
-      // Criar novo usuário — preserva sessão do admin
-      const { data: adminSess } = await db.auth.getSession();
-      const { data: nu, error: signErr } = await db.auth.signUp({
-        email, password: 'VMLI2024!',
-        options: { data: { name, role: 'professor', valor_aula: valor } }
-      });
-      if (signErr) throw signErr;
-
-      // Restaura sessão admin após signUp
-      if (adminSess?.session) {
-        setTimeout(async () => {
-          const { data: cur } = await db.auth.getSession();
-          if (!cur?.session || cur.session.user.id !== user.id) {
-            await db.auth.setSession({
-              access_token:  adminSess.session.access_token,
-              refresh_token: adminSess.session.refresh_token,
-            });
-          }
-        }, 800);
-      }
-
-      // Garante que o profile existe com valor_aula correto
-      if (nu?.user) {
-        await new Promise(r => setTimeout(r, 1200));
-        await db.from('profiles').upsert({
-          id: nu.user.id, name, email, role: 'professor', valor_aula: valor
-        });
+      // Criar novo usuário — preserva sessão do admin (helper na seção 26)
+      const nuUser = await createAuthUser({ name, email, role: 'professor', valor_aula: valor });
+      if (nuUser) {
         await db.from('valor_aula_historico').insert({
-          professor_id: nu.user.id, valor_anterior: 0, valor_novo: valor, alterado_por: user.id
+          professor_id: nuUser.id, valor_anterior: 0, valor_novo: valor, alterado_por: user.id
         });
       }
       showToast('Professor criado! Senha padrão: VMLI2024!', 'success');
@@ -938,90 +953,7 @@ async function removeAlunoFromTurma(id, turmaId) {
 // ============================================================
 // 9. ALUNOS (admin)
 // ============================================================
-async function renderAlunos() {
-  const { data: alunos } = await db.from('alunos').select('*').order('nome');
-  _D.alunos = {};
-  alunos?.forEach(a=>{ _D.alunos[a.id]=a; });
-
-  setContent(`
-    <div class="page-header">
-      <h2>Alunos</h2>
-      <button class="btn btn-primary" onclick="openModalAluno(null)">+ Novo Aluno</button>
-    </div>
-    <div class="card">
-      <div class="card-body" style="padding-bottom:0">
-        <input type="text" class="search-input" placeholder="🔍 Buscar aluno…" oninput="filterAlunos(this.value)">
-      </div>
-      <div class="table-wrapper">
-        <table class="table">
-          <thead><tr><th>Nome</th><th>Email</th><th>Telefone</th><th>Ações</th></tr></thead>
-          <tbody id="alunos-tbody">
-            ${alunos?.length ? alunos.map(a=>`
-              <tr data-n="${a.nome.toLowerCase()}">
-                <td>${a.nome}</td>
-                <td>${a.email||'—'}</td>
-                <td>${a.telefone||'—'}</td>
-                <td><button class="btn btn-sm btn-secondary" onclick="openModalAluno('${a.id}')">Editar</button></td>
-              </tr>`).join('')
-            : '<tr><td colspan="4" class="empty-state">Nenhum aluno cadastrado.</td></tr>'}
-          </tbody>
-        </table>
-      </div>
-    </div>`);
-}
-
-function filterAlunos(q) {
-  document.querySelectorAll('#alunos-tbody tr[data-n]').forEach(tr => {
-    tr.style.display = tr.dataset.n.includes(q.toLowerCase()) ? '' : 'none';
-  });
-}
-
-function openModalAluno(id) {
-  const a = id ? _D.alunos?.[id] : null;
-  openModal(`
-    <div class="modal-header">
-      <h3>${a?'Editar Aluno':'Novo Aluno'}</h3>
-      <button class="modal-close" onclick="closeModal()">✕</button>
-    </div>
-    <form onsubmit="saveAluno(event)" style="padding:20px">
-      <div class="form-group">
-        <label>Nome Completo *</label>
-        <input type="text" name="nome" value="${esc(a?.nome)}" required>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Email</label>
-          <input type="email" name="email" value="${esc(a?.email)}">
-        </div>
-        <div class="form-group">
-          <label>Telefone</label>
-          <input type="tel" name="telefone" value="${esc(a?.telefone)}">
-        </div>
-      </div>
-      <div class="form-group">
-        <label>Observações</label>
-        <textarea name="notas" rows="2">${esc(a?.notas)}</textarea>
-      </div>
-      <input type="hidden" name="id" value="${a?.id||''}">
-      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
-        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-        <button type="submit" class="btn btn-primary">${a?'Salvar':'Criar Aluno'}</button>
-      </div>
-    </form>`);
-}
-
-async function saveAluno(e) {
-  e.preventDefault();
-  const fd = new FormData(e.target);
-  const id = fd.get('id');
-  const row = { nome:fd.get('nome').trim(), email:fd.get('email').trim()||null, telefone:fd.get('telefone').trim()||null, notas:fd.get('notas').trim()||null };
-  const btn = e.target.querySelector('[type=submit]');
-  btn.disabled=true;
-  const { error } = id ? await db.from('alunos').update(row).eq('id',id) : await db.from('alunos').insert(row);
-  if (error) { showToast('Erro: '+error.message,'error'); btn.disabled=false; return; }
-  showToast(id?'Aluno atualizado!':'Aluno criado!','success');
-  closeModal(); renderAlunos();
-}
+// (módulo de Alunos movido para a seção 22, no final do arquivo)
 
 // ============================================================
 // 10. MINHAS TURMAS (professor)
@@ -1942,7 +1874,7 @@ function monthEnd(mes, ano) {
 }
 
 function getRoleLabel(r) {
-  return { admin:'Administrador', professor:'Professor', financeiro:'Financeiro' }[r] || r;
+  return { admin:'Administrador', secretaria:'Secretaria', professor:'Professor', financeiro:'Financeiro' }[r] || r;
 }
 
 function modalLabel(m) {
@@ -1957,4 +1889,1503 @@ function initials(name='') {
 function esc(v) {
   if (!v) return '';
   return String(v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ============================================================
+// 20. PERMISSÕES
+// ============================================================
+const PERMS = [
+  { key:'alunos_ver',        label:'Ver alunos',                        desc:'Acessa a lista e a ficha dos alunos' },
+  { key:'alunos_editar',     label:'Cadastrar / editar alunos',         desc:'Cria alunos e altera dados cadastrais' },
+  { key:'pagamentos_ver',    label:'Ver pagamentos',                    desc:'Painel de pagamentos e aba financeira do aluno' },
+  { key:'pagamentos_editar', label:'Registrar pagamentos',              desc:'Marca parcelas como pagas, edita valores e vencimentos' },
+  { key:'trancamento',       label:'Trancar / reativar / alterar plano',desc:'Trancamento, cancelamento e mudança do número de parcelas' },
+  { key:'crm_ver',           label:'Ver CRM',                           desc:'Acessa o funil de potenciais alunos' },
+  { key:'crm_editar',        label:'Editar CRM',                        desc:'Cria e move leads, adiciona anotações, matricula' },
+];
+const PERM_DEFAULTS = {
+  admin:      PERMS.map(p=>p.key),
+  secretaria: ['alunos_ver','alunos_editar','pagamentos_ver','pagamentos_editar','trancamento','crm_ver','crm_editar'],
+  financeiro: ['alunos_ver','pagamentos_ver','pagamentos_editar'],
+  professor:  [],
+};
+const ROLES = [
+  { id:'admin',      label:'Administrador' },
+  { id:'secretaria', label:'Secretaria' },
+  { id:'financeiro', label:'Financeiro' },
+  { id:'professor',  label:'Professor' },
+];
+
+function can(perm, prof = profile) {
+  if (!prof) return false;
+  if (prof.role === 'admin') return true;
+  const ov = prof.permissoes || {};
+  if (Object.prototype.hasOwnProperty.call(ov, perm)) return !!ov[perm];
+  return (PERM_DEFAULTS[prof.role] || []).includes(perm);
+}
+
+function semPermissao(msg = 'Você não tem permissão para acessar esta tela.') {
+  setContent(`<div class="card"><div class="card-body"><p class="empty-state">🔒 ${msg}<br><span class="text-muted">Peça ao administrador para liberar em "Usuários & Permissões".</span></p></div></div>`);
+}
+
+// ============================================================
+// 21. HELPERS — datas, parcelas, whatsapp
+// ============================================================
+const IDIOMAS = ['Inglês','Espanhol','Francês','Italiano','Alemão','Português para estrangeiros','Outro'];
+const ORIGENS = ['Instagram','Facebook','Google','Site','Indicação','WhatsApp','Passou na porta','Evento','Outro'];
+const FORMAS_PGTO = [
+  { id:'pix',           label:'Pix' },
+  { id:'cartao',        label:'Cartão' },
+  { id:'boleto',        label:'Boleto' },
+  { id:'dinheiro',      label:'Dinheiro' },
+  { id:'transferencia', label:'Transferência' },
+  { id:'outro',         label:'Outro' },
+];
+
+function todayISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function makeDate(ano, mes, dia) {
+  const last = new Date(ano, mes, 0).getDate();
+  const d = Math.min(Math.max(1, dia||1), last);
+  return `${ano}-${String(mes).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+function addMonthsYM(ano, mes, n) {
+  const t = ano*12 + (mes-1) + n;
+  return { ano: Math.floor(t/12), mes: (t%12)+1 };
+}
+function ymFromInput(v) {          // "2026-09" -> {ano, mes}
+  const [a, m] = (v||'').split('-').map(Number);
+  return { ano: a, mes: m };
+}
+function ymToInput(ano, mes) { return `${ano}-${String(mes).padStart(2,'0')}`; }
+function formatDateTime(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+}
+function daysSince(dateISO) {
+  return Math.floor((new Date(todayISO()) - new Date(dateISO)) / 86400000);
+}
+function valorLiquido(p) { return (Number(p.valor)||0) - (Number(p.desconto)||0); }
+function parcelaEstado(p) {
+  if (p.status === 'pendente' && p.vencimento < todayISO()) return 'atrasada';
+  return p.status;
+}
+function parcelaBadge(p) {
+  const e = parcelaEstado(p);
+  return {
+    pendente:  '<span class="badge badge-warning">Pendente</span>',
+    atrasada:  `<span class="badge badge-danger">Atrasada ${daysSince(p.vencimento)}d</span>`,
+    pago:      '<span class="badge badge-success">Paga</span>',
+    suspensa:  '<span class="badge badge-info">Suspensa</span>',
+    cancelada: '<span class="badge badge-gray">Cancelada</span>',
+  }[e] || e;
+}
+function alunoStatusBadge(s) {
+  return {
+    ativo:     '<span class="badge badge-success">Ativo</span>',
+    trancado:  '<span class="badge badge-info">Trancado</span>',
+    cancelado: '<span class="badge badge-gray">Cancelado</span>',
+    concluido: '<span class="badge badge-primary">Concluído</span>',
+  }[s] || `<span class="badge badge-gray">${s||'—'}</span>`;
+}
+function formaLabel(id) { return FORMAS_PGTO.find(f=>f.id===id)?.label || id || '—'; }
+
+function waLink(tel, msg='') {
+  if (!tel) return '';
+  let d = String(tel).replace(/\D/g,'');
+  if (d.length === 10 || d.length === 11) d = '55' + d;
+  return `https://wa.me/${d}${msg ? '?text='+encodeURIComponent(msg) : ''}`;
+}
+function waBtn(tel, msg='', label='WhatsApp') {
+  if (!tel) return '';
+  return `<a class="btn btn-sm btn-success wa-btn" href="${waLink(tel,msg)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">💬 ${label}</a>`;
+}
+function selectOptions(list, selected, placeholder='Selecione…') {
+  return `<option value="">${placeholder}</option>` +
+    list.map(o => {
+      const id = typeof o === 'string' ? o : o.id;
+      const lb = typeof o === 'string' ? o : o.label;
+      return `<option value="${esc(id)}" ${selected===id?'selected':''}>${esc(lb)}</option>`;
+    }).join('');
+}
+
+async function logHistorico(alunoId, tipo, descricao) {
+  await db.from('aluno_historico').insert({ aluno_id: alunoId, tipo, descricao, user_id: user?.id });
+}
+
+function gerarParcelas(alunoId, { n, valor, dia, mesInicio, anoInicio, numeroInicial=1 }) {
+  const rows = [];
+  for (let i=0; i<n; i++) {
+    const { ano, mes } = addMonthsYM(anoInicio, mesInicio, i);
+    rows.push({ aluno_id: alunoId, numero: numeroInicial+i, valor, vencimento: makeDate(ano, mes, dia), status:'pendente' });
+  }
+  return rows;
+}
+
+function planoFields(prefix='', vals={}) {
+  const { ano, mes } = getCurrentMonthYear();
+  const next = addMonthsYM(ano, mes, 1);
+  return `
+    <div class="form-row">
+      <div class="form-group">
+        <label>Nº de parcelas *</label>
+        <input type="number" name="${prefix}num_parcelas" min="1" max="60" value="${vals.num_parcelas||''}" oninput="atualizaTotalPlano('${prefix}')" placeholder="ex: 12">
+      </div>
+      <div class="form-group">
+        <label>Valor de cada parcela (R$) *</label>
+        <input type="number" name="${prefix}valor_parcela" step="0.01" min="0" value="${vals.valor_parcela||''}" oninput="atualizaTotalPlano('${prefix}')" placeholder="ex: 250,00">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Dia do vencimento *</label>
+        <input type="number" name="${prefix}dia_vencimento" min="1" max="31" value="${vals.dia_vencimento||10}">
+      </div>
+      <div class="form-group">
+        <label>Primeiro vencimento (mês) *</label>
+        <input type="month" name="${prefix}primeiro" value="${vals.primeiro || ymToInput(next.ano, next.mes)}">
+      </div>
+    </div>
+    <div class="plano-total" id="${prefix}plano-total">Total do plano: <strong>${formatCurrency((vals.num_parcelas||0)*(vals.valor_parcela||0))}</strong></div>`;
+}
+function atualizaTotalPlano(prefix='') {
+  const f = document.querySelector('#modal-content form') || document;
+  const n = Number(f.querySelector(`[name="${prefix}num_parcelas"]`)?.value||0);
+  const v = Number(f.querySelector(`[name="${prefix}valor_parcela"]`)?.value||0);
+  const el = document.getElementById(`${prefix}plano-total`);
+  if (el) el.innerHTML = `Total do plano: <strong>${formatCurrency(n*v)}</strong>`;
+}
+function lerPlano(fd, prefix='') {
+  const n     = parseInt(fd.get(`${prefix}num_parcelas`)||0);
+  const valor = parseFloat(fd.get(`${prefix}valor_parcela`)||0);
+  const dia   = parseInt(fd.get(`${prefix}dia_vencimento`)||10);
+  const { ano, mes } = ymFromInput(fd.get(`${prefix}primeiro`));
+  if (!n || !valor || !ano || !mes) return null;
+  return { n, valor, dia, mesInicio: mes, anoInicio: ano };
+}
+
+// ============================================================
+// 22. ALUNOS — lista (substitui a versão antiga)
+// ============================================================
+async function renderAlunos() {
+  if (!can('alunos_ver')) return semPermissao();
+  const sel = can('pagamentos_ver') ? '*, parcelas(id,status,vencimento,valor,desconto)' : '*';
+  const { data: alunos, error } = await db.from('alunos').select(sel).order('nome');
+  if (error) { setContent(`<div class="alert alert-warning">Erro ao carregar alunos: ${error.message}</div>`); return; }
+
+  _D.alunos = {}; _alunoFiltro = 'todos';
+  alunos?.forEach(a => {
+    const ps = a.parcelas || [];
+    const atrasadas = ps.filter(p => parcelaEstado(p)==='atrasada');
+    a._atrasadas = atrasadas.length;
+    a._valorAtraso = atrasadas.reduce((s,p)=>s+valorLiquido(p),0);
+    a._temPlano = ps.length > 0;
+    _D.alunos[a.id] = a;
+  });
+
+  const ativos    = alunos?.filter(a=>(a.status||'ativo')==='ativo').length||0;
+  const trancados = alunos?.filter(a=>a.status==='trancado').length||0;
+  const emAtraso  = alunos?.filter(a=>a._atrasadas>0 && (a.status||'ativo')==='ativo').length||0;
+
+  function finBadge(a) {
+    if (!can('pagamentos_ver')) return '—';
+    if (a.status==='trancado')  return '<span class="badge badge-info">Suspenso</span>';
+    if (a.status==='cancelado') return '<span class="badge badge-gray">—</span>';
+    if (a._atrasadas>0) return `<span class="badge badge-danger">${a._atrasadas} em atraso</span>`;
+    if (a._temPlano)    return '<span class="badge badge-success">Em dia</span>';
+    return '<span class="badge badge-gray">Sem plano</span>';
+  }
+
+  setContent(`
+    <div class="page-header">
+      <h2>Alunos</h2>
+      ${can('alunos_editar') ? '<button class="btn btn-primary" onclick="openModalAluno(null)">+ Novo Aluno</button>' : ''}
+    </div>
+    <div class="stats-grid" style="margin-bottom:18px">
+      ${statCard('🎓', ativos, 'Alunos ativos')}
+      ${statCard('⏸️', trancados, 'Trancados')}
+      ${can('pagamentos_ver') ? statCard('⚠️', emAtraso, 'Com parcela atrasada', "filtrarAlunos('atraso')") : ''}
+    </div>
+    <div class="card">
+      <div class="card-body" style="padding-bottom:0">
+        <div class="toolbar">
+          <input type="text" class="search-input" placeholder="🔍 Buscar por nome, telefone ou email…" oninput="filterAlunos(this.value)">
+          <div class="chips" id="alunos-chips">
+            <button class="chip active" data-f="todos"    onclick="filtrarAlunos('todos')">Todos</button>
+            <button class="chip" data-f="ativo"           onclick="filtrarAlunos('ativo')">Ativos</button>
+            ${can('pagamentos_ver') ? '<button class="chip" data-f="atraso" onclick="filtrarAlunos(\'atraso\')">Em atraso</button>' : ''}
+            <button class="chip" data-f="trancado"        onclick="filtrarAlunos('trancado')">Trancados</button>
+            <button class="chip" data-f="cancelado"       onclick="filtrarAlunos('cancelado')">Cancelados</button>
+          </div>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table class="table">
+          <thead><tr><th>Nome</th><th>Contato</th><th>Idioma</th><th>Status</th><th>Financeiro</th><th>Ações</th></tr></thead>
+          <tbody id="alunos-tbody">
+            ${alunos?.length ? alunos.map(a=>`
+              <tr data-n="${esc((a.nome+' '+(a.telefone||'')+' '+(a.email||'')).toLowerCase())}"
+                  data-status="${a.status||'ativo'}" data-atraso="${a._atrasadas>0?1:0}"
+                  class="row-click" onclick="openFichaAluno('${a.id}')">
+                <td><div class="user-cell"><div class="mini-avatar">${initials(a.nome)}</div><strong>${esc(a.nome)}</strong></div></td>
+                <td>${esc(a.telefone)||'—'} ${a.telefone ? `<a class="wa-icon" href="${waLink(a.telefone)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="WhatsApp">💬</a>`:''}<br><span class="text-muted">${esc(a.email)||''}</span></td>
+                <td>${esc(a.idioma)||'—'}</td>
+                <td>${alunoStatusBadge(a.status||'ativo')}</td>
+                <td>${finBadge(a)}</td>
+                <td><div class="action-btns">
+                  <button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openFichaAluno('${a.id}')">Ficha</button>
+                  ${can('alunos_editar') ? `<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();openModalAluno('${a.id}')">Editar</button>` : ''}
+                </div></td>
+              </tr>`).join('')
+            : '<tr><td colspan="6" class="empty-state">Nenhum aluno cadastrado.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>`);
+}
+
+let _alunoFiltro = 'todos';
+function filtrarAlunos(f) {
+  _alunoFiltro = f;
+  document.querySelectorAll('#alunos-chips .chip').forEach(c => c.classList.toggle('active', c.dataset.f===f));
+  filterAlunos(document.querySelector('.search-input')?.value || '');
+}
+function filterAlunos(q) {
+  q = (q||'').toLowerCase();
+  document.querySelectorAll('#alunos-tbody tr[data-n]').forEach(tr => {
+    const okQ = tr.dataset.n.includes(q);
+    let okF = true;
+    if (_alunoFiltro==='atraso') okF = tr.dataset.atraso==='1';
+    else if (_alunoFiltro!=='todos') okF = tr.dataset.status===_alunoFiltro;
+    tr.style.display = (okQ && okF) ? '' : 'none';
+  });
+}
+
+function openModalAluno(id) {
+  if (!can('alunos_editar')) { showToast('Sem permissão para editar alunos','error'); return; }
+  const a = id ? _D.alunos?.[id] : null;
+  openModal(`
+    <div class="modal-header">
+      <h3>${a?'Editar Aluno':'Novo Aluno'}</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <form onsubmit="saveAluno(event)" style="padding:20px">
+      <div class="form-group">
+        <label>Nome Completo *</label>
+        <input type="text" name="nome" value="${esc(a?.nome)}" required>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Telefone (WhatsApp)</label>
+          <input type="tel" name="telefone" value="${esc(a?.telefone)}" placeholder="(11) 99999-9999">
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" name="email" value="${esc(a?.email)}">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Idioma</label>
+          <select name="idioma">${selectOptions(IDIOMAS, a?.idioma)}</select>
+        </div>
+        <div class="form-group">
+          <label>Como conheceu a escola</label>
+          <select name="origem">${selectOptions(ORIGENS, a?.origem)}</select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Data de nascimento</label>
+          <input type="date" name="data_nascimento" value="${a?.data_nascimento||''}">
+        </div>
+        <div class="form-group">
+          <label>CPF</label>
+          <input type="text" name="cpf" value="${esc(a?.cpf)}" placeholder="000.000.000-00">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Responsável (se menor)</label>
+          <input type="text" name="responsavel" value="${esc(a?.responsavel)}">
+        </div>
+        <div class="form-group">
+          <label>Data da matrícula</label>
+          <input type="date" name="data_matricula" value="${a?.data_matricula||todayISO()}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Observações</label>
+        <textarea name="notas" rows="2">${esc(a?.notas)}</textarea>
+      </div>
+      ${!a && can('pagamentos_editar') ? `
+        <details class="plano-box" open>
+          <summary>💰 Plano de pagamento (opcional — pode configurar depois na ficha)</summary>
+          ${planoFields('p_')}
+        </details>` : ''}
+      <input type="hidden" name="id" value="${a?.id||''}">
+      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${a?'Salvar':'Criar Aluno'}</button>
+      </div>
+    </form>`);
+}
+
+async function saveAluno(e) {
+  e.preventDefault();
+  const fd  = new FormData(e.target);
+  const id  = fd.get('id');
+  const g   = k => (fd.get(k)||'').toString().trim() || null;
+  const row = {
+    nome: g('nome'), email: g('email'), telefone: g('telefone'), notas: g('notas'),
+    idioma: g('idioma'), origem: g('origem'), cpf: g('cpf'), responsavel: g('responsavel'),
+    data_nascimento: g('data_nascimento'), data_matricula: g('data_matricula'),
+  };
+  const btn = e.target.querySelector('[type=submit]');
+  btn.disabled = true;
+  try {
+    if (id) {
+      const { error } = await db.from('alunos').update(row).eq('id', id);
+      if (error) throw error;
+      showToast('Aluno atualizado!','success');
+      closeModal();
+      if (activeTab==='aluno-ficha') openFichaAluno(id, _D.fichaTab); else renderAlunos();
+    } else {
+      const plano = can('pagamentos_editar') ? lerPlano(fd, 'p_') : null;
+      const { data: novo, error } = await db.from('alunos').insert(row).select().single();
+      if (error) throw error;
+      if (plano) await aplicarPlano(novo.id, plano, 'novo');
+      showToast('Aluno criado! 🎉','success');
+      closeModal();
+      openFichaAluno(novo.id, 'financeiro');
+    }
+  } catch (err) {
+    showToast('Erro: ' + err.message, 'error'); btn.disabled = false;
+  }
+}
+
+// ============================================================
+// 23. FICHA DO ALUNO — dados, financeiro (parcelas), histórico
+// ============================================================
+async function openFichaAluno(id, tab) {
+  if (!can('alunos_ver')) return semPermissao();
+  activeTab = 'aluno-ficha';
+  _D.fichaTab = tab || _D.fichaTab || (can('pagamentos_ver') ? 'financeiro' : 'dados');
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.tab==='alunos'));
+  document.getElementById('page-title').textContent = 'Ficha do Aluno';
+  setContent(`<div class="loading"><div class="spinner"></div></div>`);
+
+  const [{ data: a, error }, { data: parcelas }, { data: hist }, { data: turmas }] = await Promise.all([
+    db.from('alunos').select('*').eq('id', id).single(),
+    can('pagamentos_ver') ? db.from('parcelas').select('*').eq('aluno_id', id).order('numero') : Promise.resolve({data:[]}),
+    db.from('aluno_historico').select('*, profiles(name)').eq('aluno_id', id).order('created_at',{ascending:false}),
+    db.from('turma_alunos').select('id,status,turmas(id,codigo,nome,horario,idioma,profiles(name))').eq('aluno_id', id),
+  ]);
+  if (error || !a) { setContent(`<div class="alert alert-warning">Aluno não encontrado.</div>`); return; }
+  a.status = a.status || 'ativo';
+  _D.alunos = _D.alunos || {}; _D.alunos[a.id] = a;
+  _D.parcelas = {}; (parcelas||[]).forEach(p => { _D.parcelas[p.id] = p; });
+  _D.fichaAluno = a; _D.fichaParcelas = parcelas||[]; _D.fichaHist = hist||[]; _D.fichaTurmas = turmas||[];
+
+  const podeTrancar = can('trancamento');
+  const acoesStatus = !podeTrancar ? '' : (
+    a.status==='ativo'
+      ? `<button class="btn btn-sm btn-warning" onclick="openModalTrancar('${a.id}')">⏸ Trancar curso</button>
+         <button class="btn btn-sm btn-danger"  onclick="openModalCancelar('${a.id}')">✕ Cancelar matrícula</button>`
+    : a.status==='trancado'
+      ? `<button class="btn btn-sm btn-success" onclick="openModalReativar('${a.id}')">▶ Reativar</button>
+         <button class="btn btn-sm btn-danger"  onclick="openModalCancelar('${a.id}')">✕ Cancelar matrícula</button>`
+      : `<button class="btn btn-sm btn-success" onclick="reativarSimples('${a.id}')">▶ Reativar matrícula</button>`);
+
+  setContent(`
+    <button class="btn-link btn-back" onclick="showTab('alunos')">← Voltar para Alunos</button>
+    <div class="card ficha-header">
+      <div class="ficha-id">
+        <div class="user-avatar big">${initials(a.nome)}</div>
+        <div>
+          <h2>${esc(a.nome)} ${alunoStatusBadge(a.status)}</h2>
+          <div class="ficha-meta">
+            ${a.idioma ? `<span class="badge badge-info">${esc(a.idioma)}</span>` : ''}
+            ${a.telefone ? `<span>📱 ${esc(a.telefone)}</span>` : ''}
+            ${a.email ? `<span>✉️ ${esc(a.email)}</span>` : ''}
+            ${a.data_matricula ? `<span class="text-muted">Matrícula ${formatDate(a.data_matricula)}</span>` : ''}
+          </div>
+        </div>
+      </div>
+      <div class="ficha-actions">
+        ${waBtn(a.telefone, `Olá ${a.nome.split(' ')[0]}, tudo bem? Aqui é da VMLI Idiomas.`)}
+        ${can('alunos_editar') ? `<button class="btn btn-sm btn-secondary" onclick="openModalAluno('${a.id}')">✏️ Editar dados</button>` : ''}
+        ${acoesStatus}
+      </div>
+    </div>
+
+    <div class="tabs">
+      ${can('pagamentos_ver') ? `<button class="tab-btn ${_D.fichaTab==='financeiro'?'active':''}" onclick="fichaTab('financeiro')">💰 Financeiro</button>` : ''}
+      <button class="tab-btn ${_D.fichaTab==='dados'?'active':''}" onclick="fichaTab('dados')">👤 Dados</button>
+      <button class="tab-btn ${_D.fichaTab==='turmas'?'active':''}" onclick="fichaTab('turmas')">📚 Turmas</button>
+      <button class="tab-btn ${_D.fichaTab==='historico'?'active':''}" onclick="fichaTab('historico')">📋 Histórico</button>
+    </div>
+    <div id="ficha-body"></div>`);
+  fichaTab(_D.fichaTab);
+}
+
+function fichaTab(tab) {
+  _D.fichaTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.textContent.includes(
+    {financeiro:'Financeiro', dados:'Dados', turmas:'Turmas', historico:'Histórico'}[tab])));
+  const el = document.getElementById('ficha-body');
+  if (!el) return;
+  el.innerHTML = { financeiro: fichaFinanceiroHTML, dados: fichaDadosHTML, turmas: fichaTurmasHTML, historico: fichaHistoricoHTML }[tab]();
+}
+
+function fichaDadosHTML() {
+  const a = _D.fichaAluno;
+  const item = (l, v) => `<div class="info-item"><span class="info-label">${l}</span><span class="info-value">${v||'—'}</span></div>`;
+  return `<div class="card"><div class="card-body info-grid">
+    ${item('Nome', esc(a.nome))}
+    ${item('Telefone', esc(a.telefone))}
+    ${item('Email', esc(a.email))}
+    ${item('Idioma', esc(a.idioma))}
+    ${item('Nascimento', formatDate(a.data_nascimento))}
+    ${item('CPF', esc(a.cpf))}
+    ${item('Responsável', esc(a.responsavel))}
+    ${item('Origem', esc(a.origem))}
+    ${item('Matrícula', formatDate(a.data_matricula))}
+    ${item('Status', alunoStatusBadge(a.status))}
+    <div class="info-item full"><span class="info-label">Observações</span><span class="info-value">${esc(a.notas)||'—'}</span></div>
+  </div></div>`;
+}
+
+function fichaTurmasHTML() {
+  const ts = _D.fichaTurmas.filter(t => t.turmas);
+  return `<div class="card"><div class="card-body">
+    ${ts.length ? ts.map(t => `
+      <div class="list-item">
+        <div class="list-item-left">
+          <div class="list-item-title">${esc(t.turmas.codigo)} ${t.turmas.nome ? '— '+esc(t.turmas.nome) : ''}</div>
+          <div class="list-item-sub">${esc(t.turmas.horario)||''} ${t.turmas.profiles?.name ? '• Prof. '+esc(t.turmas.profiles.name) : ''}</div>
+        </div>
+        <div class="list-item-right"><span class="badge ${t.status==='active'?'badge-success':'badge-gray'}">${t.status==='active'?'Ativo':'Inativo'}</span></div>
+      </div>`).join('')
+    : '<p class="empty-state">Este aluno não está em nenhuma turma. Adicione pela tela <a href="#" onclick="showTab(\'turmas\');return false">Turmas → Alunos</a>.</p>'}
+  </div></div>`;
+}
+
+function fichaHistoricoHTML() {
+  const h = _D.fichaHist;
+  const icon = { trancamento:'⏸', reativacao:'▶', cancelamento:'✕', conclusao:'🎓', plano:'📐', parcela:'🧾', pagamento:'💵', nota:'📝' };
+  return `<div class="card"><div class="card-body">
+    ${h.length ? `<div class="timeline">${h.map(x => `
+      <div class="tl-item">
+        <div class="tl-icon">${icon[x.tipo]||'•'}</div>
+        <div class="tl-body">
+          <div class="tl-text">${esc(x.descricao)}</div>
+          <div class="tl-meta">${formatDateTime(x.created_at)} ${x.profiles?.name ? '• '+esc(x.profiles.name) : ''}</div>
+        </div>
+      </div>`).join('')}</div>`
+    : '<p class="empty-state">Nenhum registro ainda.</p>'}
+  </div></div>`;
+}
+
+function fichaFinanceiroHTML() {
+  const a = _D.fichaAluno, ps = _D.fichaParcelas;
+  const validas  = ps.filter(p => p.status!=='cancelada');
+  const total    = validas.reduce((s,p)=>s+valorLiquido(p),0);
+  const pago     = ps.filter(p=>p.status==='pago').reduce((s,p)=>s+(Number(p.valor_pago)||valorLiquido(p)),0);
+  const aberto   = ps.filter(p=>p.status==='pendente'||p.status==='suspensa').reduce((s,p)=>s+valorLiquido(p),0);
+  const atras    = ps.filter(p=>parcelaEstado(p)==='atrasada');
+  const atrasado = atras.reduce((s,p)=>s+valorLiquido(p),0);
+  const pagas    = ps.filter(p=>p.status==='pago').length;
+  const pct      = validas.length ? Math.round(pagas/validas.length*100) : 0;
+  const podeEd   = can('pagamentos_editar');
+  const podePl   = can('trancamento');
+
+  if (!ps.length) {
+    return `<div class="card"><div class="card-body">
+      <p class="empty-state">Este aluno ainda não tem plano de pagamento.</p>
+      ${podeEd ? `<div style="text-align:center"><button class="btn btn-primary" onclick="openModalPlano('${a.id}','novo')">📐 Configurar plano de parcelas</button></div>` : ''}
+    </div></div>`;
+  }
+
+  return `
+    ${a.status==='trancado' ? '<div class="alert alert-info">⏸ Curso trancado — as parcelas pendentes estão suspensas e não contam como atraso.</div>' : ''}
+    ${atras.length ? `<div class="alert alert-warning">⚠️ <strong>${atras.length} parcela(s) atrasada(s)</strong> — ${formatCurrency(atrasado)}.
+       ${waBtn(a.telefone, msgCobranca(a, atras), 'Lembrar no WhatsApp')}</div>` : ''}
+    <div class="stats-grid" style="margin-bottom:16px">
+      ${statCard('📐', formatCurrency(total), `Plano (${validas.length} parcelas)`)}
+      ${statCard('✅', formatCurrency(pago), `Pago (${pagas}/${validas.length})`)}
+      ${statCard('⏳', formatCurrency(aberto), 'Em aberto')}
+      ${statCard('⚠️', formatCurrency(atrasado), 'Atrasado')}
+    </div>
+    <div class="progress"><div class="progress-bar" style="width:${pct}%"></div><span>${pct}% pago</span></div>
+    <div class="card">
+      <div class="card-header">
+        <h3>Parcelas</h3>
+        <div class="action-btns">
+          ${podeEd ? `<button class="btn btn-sm btn-secondary" onclick="openModalParcela('${a.id}',null)">+ Parcela avulsa</button>` : ''}
+          ${podePl ? `<button class="btn btn-sm btn-primary" onclick="openModalPlano('${a.id}','ajustar')">📐 Alterar nº de parcelas</button>` : ''}
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table class="table">
+          <thead><tr><th>#</th><th>Vencimento</th><th>Valor</th><th>Status</th><th>Pagamento</th><th>Obs</th><th>Ações</th></tr></thead>
+          <tbody>${ps.map(p => parcelaRow(p, podeEd)).join('')}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function msgCobranca(a, parcelas) {
+  const nome = a.nome.split(' ')[0];
+  const lista = parcelas.map(p => `parcela ${p.numero} (venc. ${formatDate(p.vencimento)}) — ${formatCurrency(valorLiquido(p))}`).join(', ');
+  return `Olá ${nome}, tudo bem? Aqui é da VMLI Idiomas 😊 Passando para lembrar que consta em aberto: ${lista}. Qualquer dúvida estamos à disposição!`;
+}
+
+function parcelaRow(p, podeEd) {
+  const e = parcelaEstado(p);
+  const valor = Number(p.desconto) > 0
+    ? `<s class="text-muted">${formatCurrency(p.valor)}</s> <strong>${formatCurrency(valorLiquido(p))}</strong>`
+    : `<strong>${formatCurrency(p.valor)}</strong>`;
+  const pg = p.status==='pago' ? `${formatDate(p.data_pagamento)}<br><span class="text-muted">${formaLabel(p.forma_pagamento)}${p.valor_pago && Number(p.valor_pago)!==valorLiquido(p) ? ' • '+formatCurrency(p.valor_pago) : ''}</span>` : '—';
+  let acoes = '';
+  if (podeEd) {
+    if (p.status==='pendente')
+      acoes = `<button class="btn btn-sm btn-success" onclick="openModalPagar('${p.id}')">💵 Pagar</button>
+               <button class="btn btn-sm btn-secondary" onclick="openModalParcela('${p.aluno_id}','${p.id}')">Editar</button>
+               <button class="btn btn-sm btn-danger" onclick="removerParcela('${p.id}')">🗑</button>`;
+    else if (p.status==='pago')
+      acoes = `<button class="btn btn-sm btn-secondary" onclick="desfazerPagamento('${p.id}')">Desfazer</button>`;
+    else if (p.status==='suspensa')
+      acoes = `<button class="btn btn-sm btn-secondary" onclick="openModalParcela('${p.aluno_id}','${p.id}')">Editar</button>`;
+  }
+  return `<tr class="row-${e}">
+    <td>${p.numero}</td>
+    <td>${formatDate(p.vencimento)}</td>
+    <td>${valor}</td>
+    <td>${parcelaBadge(p)}</td>
+    <td>${pg}</td>
+    <td class="text-muted">${esc(p.obs)||''}</td>
+    <td><div class="action-btns">${acoes}</div></td>
+  </tr>`;
+}
+
+// ---- Plano (gerar / ajustar parcelas) ----
+function openModalPlano(alunoId, mode) {
+  const a  = _D.alunos?.[alunoId] || _D.fichaAluno;
+  const ps = _D.fichaParcelas || [];
+  const pagas = ps.filter(p=>p.status==='pago');
+  const abertas = ps.filter(p=>p.status==='pendente'||p.status==='suspensa');
+  const last = abertas[0] || pagas[pagas.length-1];
+  const vals = mode==='ajustar' ? {
+    num_parcelas: abertas.length || '',
+    valor_parcela: last ? Number(last.valor) : (a?.valor_parcela||''),
+    dia_vencimento: a?.dia_vencimento || (last ? Number(last.vencimento.split('-')[2]) : 10),
+    primeiro: abertas[0] ? abertas[0].vencimento.slice(0,7) : '',
+  } : { valor_parcela: a?.valor_parcela||'', dia_vencimento: a?.dia_vencimento||10 };
+
+  openModal(`
+    <div class="modal-header">
+      <h3>${mode==='ajustar' ? 'Alterar plano de parcelas' : 'Configurar plano de parcelas'}</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <form onsubmit="savePlano(event)" style="padding:20px">
+      ${mode==='ajustar' ? `<div class="alert alert-info">
+        As <strong>${pagas.length} parcela(s) pagas</strong> são mantidas. As <strong>${abertas.length} em aberto</strong> serão substituídas pelas novas parcelas abaixo.
+      </div>` : ''}
+      ${planoFields('', vals)}
+      <input type="hidden" name="aluno_id" value="${alunoId}">
+      <input type="hidden" name="mode" value="${mode}">
+      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${mode==='ajustar' ? 'Substituir parcelas' : 'Gerar parcelas'}</button>
+      </div>
+    </form>`);
+  atualizaTotalPlano('');
+}
+
+async function savePlano(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const plano = lerPlano(fd, '');
+  if (!plano) { showToast('Preencha nº de parcelas, valor e primeiro vencimento','error'); return; }
+  const btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
+  try {
+    await aplicarPlano(fd.get('aluno_id'), plano, fd.get('mode'));
+    showToast('Parcelas geradas! ✅','success');
+    closeModal(); openFichaAluno(fd.get('aluno_id'), 'financeiro');
+  } catch (err) { showToast('Erro: '+err.message,'error'); btn.disabled=false; }
+}
+
+async function aplicarPlano(alunoId, plano, mode) {
+  let numeroInicial = 1;
+  if (mode==='ajustar') {
+    const { data: existentes } = await db.from('parcelas').select('id,numero,status').eq('aluno_id', alunoId);
+    const pagas = (existentes||[]).filter(p=>p.status==='pago');
+    numeroInicial = pagas.length ? Math.max(...pagas.map(p=>p.numero))+1 : 1;
+    const remover = (existentes||[]).filter(p=>p.status==='pendente'||p.status==='suspensa').map(p=>p.id);
+    if (remover.length) {
+      const { error } = await db.from('parcelas').delete().in('id', remover);
+      if (error) throw error;
+    }
+  }
+  const rows = gerarParcelas(alunoId, { ...plano, numeroInicial });
+  const { error } = await db.from('parcelas').insert(rows);
+  if (error) throw error;
+  await db.from('alunos').update({
+    valor_parcela: plano.valor, dia_vencimento: plano.dia,
+    num_parcelas: numeroInicial-1+plano.n, valor_curso: (numeroInicial-1+plano.n)*plano.valor,
+  }).eq('id', alunoId);
+  await logHistorico(alunoId, 'plano',
+    `${mode==='ajustar'?'Plano alterado':'Plano criado'}: ${plano.n} parcela(s) de ${formatCurrency(plano.valor)}, vencimento dia ${plano.dia}, a partir de ${MONTHS[plano.mesInicio]}/${plano.anoInicio}`);
+}
+
+// ---- Parcela avulsa / editar ----
+function openModalParcela(alunoId, parcelaId) {
+  const p = parcelaId ? _D.parcelas?.[parcelaId] : null;
+  const ps = _D.fichaParcelas || [];
+  const nextNum = ps.length ? Math.max(...ps.map(x=>x.numero))+1 : 1;
+  openModal(`
+    <div class="modal-header">
+      <h3>${p ? `Editar parcela ${p.numero}` : 'Nova parcela avulsa'}</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <form onsubmit="saveParcela(event)" style="padding:20px">
+      <div class="form-row">
+        <div class="form-group"><label>Nº</label><input type="number" name="numero" min="1" value="${p?.numero||nextNum}" required></div>
+        <div class="form-group"><label>Vencimento *</label><input type="date" name="vencimento" value="${p?.vencimento||todayISO()}" required></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Valor (R$) *</label><input type="number" step="0.01" min="0" name="valor" value="${p?.valor??''}" required></div>
+        <div class="form-group"><label>Desconto (R$)</label><input type="number" step="0.01" min="0" name="desconto" value="${p?.desconto||0}"></div>
+      </div>
+      <div class="form-group"><label>Observação</label><input type="text" name="obs" value="${esc(p?.obs)}" placeholder="ex: taxa de material, ajuste…"></div>
+      <input type="hidden" name="id" value="${p?.id||''}"><input type="hidden" name="aluno_id" value="${alunoId}">
+      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${p?'Salvar':'Adicionar'}</button>
+      </div>
+    </form>`);
+}
+
+async function saveParcela(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const id = fd.get('id'), alunoId = fd.get('aluno_id');
+  const row = { numero: parseInt(fd.get('numero')), vencimento: fd.get('vencimento'), valor: parseFloat(fd.get('valor')||0),
+                desconto: parseFloat(fd.get('desconto')||0), obs: fd.get('obs').trim()||null };
+  const btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
+  const { error } = id ? await db.from('parcelas').update(row).eq('id', id)
+                       : await db.from('parcelas').insert({ ...row, aluno_id: alunoId, status:'pendente' });
+  if (error) { showToast('Erro: '+error.message,'error'); btn.disabled=false; return; }
+  await logHistorico(alunoId, 'parcela', `${id?'Parcela editada':'Parcela adicionada'}: nº ${row.numero}, ${formatCurrency(row.valor-row.desconto)}, venc. ${formatDate(row.vencimento)}`);
+  showToast(id?'Parcela atualizada!':'Parcela adicionada!','success');
+  closeModal(); openFichaAluno(alunoId, 'financeiro');
+}
+
+async function removerParcela(id) {
+  const p = _D.parcelas?.[id]; if (!p) return;
+  if (!confirm(`Remover a parcela ${p.numero} (${formatCurrency(valorLiquido(p))})?`)) return;
+  const { error } = await db.from('parcelas').delete().eq('id', id);
+  if (error) { showToast('Erro: '+error.message,'error'); return; }
+  await logHistorico(p.aluno_id, 'parcela', `Parcela nº ${p.numero} removida (${formatCurrency(valorLiquido(p))})`);
+  showToast('Parcela removida','success'); openFichaAluno(p.aluno_id, 'financeiro');
+}
+
+// ---- Pagar / desfazer ----
+function openModalPagar(id, voltar='ficha') {
+  const p = _D.parcelas?.[id]; if (!p) return;
+  const nome = p.alunos?.nome || _D.fichaAluno?.nome || '';
+  openModal(`
+    <div class="modal-header">
+      <h3>💵 Registrar pagamento</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <form onsubmit="savePagamento(event)" style="padding:20px">
+      <div class="alert alert-info">${esc(nome)} — parcela <strong>${p.numero}</strong>, vencimento ${formatDate(p.vencimento)} — <strong>${formatCurrency(valorLiquido(p))}</strong></div>
+      <div class="form-row">
+        <div class="form-group"><label>Data do pagamento *</label><input type="date" name="data_pagamento" value="${todayISO()}" required></div>
+        <div class="form-group"><label>Forma *</label><select name="forma_pagamento" required>${selectOptions(FORMAS_PGTO,'pix')}</select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Valor recebido (R$) *</label><input type="number" step="0.01" min="0" name="valor_pago" value="${valorLiquido(p).toFixed(2)}" required></div>
+        <div class="form-group"><label>Observação</label><input type="text" name="obs" value="${esc(p.obs)}"></div>
+      </div>
+      <input type="hidden" name="id" value="${p.id}"><input type="hidden" name="voltar" value="${voltar}">
+      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-success">✓ Confirmar pagamento</button>
+      </div>
+    </form>`);
+}
+
+async function savePagamento(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const p  = _D.parcelas?.[fd.get('id')];
+  const row = { status:'pago', data_pagamento: fd.get('data_pagamento'), forma_pagamento: fd.get('forma_pagamento'),
+                valor_pago: parseFloat(fd.get('valor_pago')||0), obs: fd.get('obs').trim()||null, pago_por: user.id };
+  const btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
+  const { error } = await db.from('parcelas').update(row).eq('id', p.id);
+  if (error) { showToast('Erro: '+error.message,'error'); btn.disabled=false; return; }
+  await logHistorico(p.aluno_id, 'pagamento', `Parcela nº ${p.numero} paga — ${formatCurrency(row.valor_pago)} via ${formaLabel(row.forma_pagamento)} em ${formatDate(row.data_pagamento)}`);
+  showToast('Pagamento registrado! ✅','success');
+  closeModal();
+  if (fd.get('voltar')==='cobrancas') renderCobrancas(); else openFichaAluno(p.aluno_id, 'financeiro');
+}
+
+async function desfazerPagamento(id) {
+  const p = _D.parcelas?.[id]; if (!p) return;
+  if (!confirm(`Desfazer o pagamento da parcela ${p.numero}? Ela voltará a ficar pendente.`)) return;
+  const { error } = await db.from('parcelas').update({ status:'pendente', data_pagamento:null, forma_pagamento:null, valor_pago:null, pago_por:null }).eq('id', id);
+  if (error) { showToast('Erro: '+error.message,'error'); return; }
+  await logHistorico(p.aluno_id, 'pagamento', `Pagamento da parcela nº ${p.numero} desfeito`);
+  showToast('Pagamento desfeito','success'); openFichaAluno(p.aluno_id, 'financeiro');
+}
+
+// ---- Trancar / Reativar / Cancelar ----
+function openModalTrancar(alunoId) {
+  const a = _D.alunos?.[alunoId];
+  openModal(`
+    <div class="modal-header"><h3>⏸ Trancar curso</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <form onsubmit="saveTrancar(event)" style="padding:20px">
+      <p>As parcelas pendentes de <strong>${esc(a?.nome)}</strong> ficarão <strong>suspensas</strong> (sem contar atraso) até a reativação. Parcelas já pagas não mudam.</p>
+      <div class="form-group"><label>Motivo</label><textarea name="motivo" rows="3" placeholder="ex: viagem, motivos financeiros…"></textarea></div>
+      <input type="hidden" name="aluno_id" value="${alunoId}">
+      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-warning">Confirmar trancamento</button>
+      </div>
+    </form>`);
+}
+async function saveTrancar(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target); const alunoId = fd.get('aluno_id'); const motivo = fd.get('motivo').trim();
+  const btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
+  const { error } = await db.from('alunos').update({ status:'trancado' }).eq('id', alunoId);
+  if (error) { showToast('Erro: '+error.message,'error'); btn.disabled=false; return; }
+  await db.from('parcelas').update({ status:'suspensa' }).eq('aluno_id', alunoId).eq('status','pendente');
+  await logHistorico(alunoId, 'trancamento', `Curso trancado${motivo?': '+motivo:''}`);
+  showToast('Curso trancado','success'); closeModal(); openFichaAluno(alunoId,'financeiro');
+}
+
+function openModalReativar(alunoId) {
+  const a = _D.alunos?.[alunoId];
+  const susp = (_D.fichaParcelas||[]).filter(p=>p.status==='suspensa');
+  const { ano, mes } = getCurrentMonthYear();
+  openModal(`
+    <div class="modal-header"><h3>▶ Reativar curso</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <form onsubmit="saveReativar(event)" style="padding:20px">
+      <p><strong>${esc(a?.nome)}</strong> tem <strong>${susp.length} parcela(s) suspensa(s)</strong>. Elas voltam a ficar pendentes, uma por mês, a partir do mês escolhido.</p>
+      <div class="form-row">
+        <div class="form-group"><label>Retomar a partir de *</label><input type="month" name="primeiro" value="${ymToInput(ano,mes)}" required></div>
+        <div class="form-group"><label>Dia do vencimento</label><input type="number" name="dia" min="1" max="31" value="${a?.dia_vencimento || (susp[0] ? Number(susp[0].vencimento.split('-')[2]) : 10)}"></div>
+      </div>
+      <input type="hidden" name="aluno_id" value="${alunoId}">
+      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-success">Reativar</button>
+      </div>
+    </form>`);
+}
+async function saveReativar(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target); const alunoId = fd.get('aluno_id');
+  const { ano, mes } = ymFromInput(fd.get('primeiro')); const dia = parseInt(fd.get('dia')||10);
+  const btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
+  try {
+    const { data: susp } = await db.from('parcelas').select('id,numero').eq('aluno_id', alunoId).eq('status','suspensa').order('numero');
+    for (let i=0; i<(susp||[]).length; i++) {
+      const d = addMonthsYM(ano, mes, i);
+      const { error } = await db.from('parcelas').update({ status:'pendente', vencimento: makeDate(d.ano, d.mes, dia) }).eq('id', susp[i].id);
+      if (error) throw error;
+    }
+    const { error } = await db.from('alunos').update({ status:'ativo', dia_vencimento: dia }).eq('id', alunoId);
+    if (error) throw error;
+    await logHistorico(alunoId, 'reativacao', `Curso reativado — ${(susp||[]).length} parcela(s) retomadas a partir de ${MONTHS[mes]}/${ano}`);
+    showToast('Curso reativado! ▶','success'); closeModal(); openFichaAluno(alunoId,'financeiro');
+  } catch (err) { showToast('Erro: '+err.message,'error'); btn.disabled=false; }
+}
+async function reativarSimples(alunoId) {
+  if (!confirm('Reativar a matrícula deste aluno? As parcelas canceladas não voltam — use "Alterar nº de parcelas" para criar um novo plano.')) return;
+  const { error } = await db.from('alunos').update({ status:'ativo' }).eq('id', alunoId);
+  if (error) { showToast('Erro: '+error.message,'error'); return; }
+  await logHistorico(alunoId, 'reativacao', 'Matrícula reativada');
+  showToast('Matrícula reativada','success'); openFichaAluno(alunoId,'financeiro');
+}
+
+function openModalCancelar(alunoId) {
+  const a = _D.alunos?.[alunoId];
+  openModal(`
+    <div class="modal-header"><h3>✕ Cancelar matrícula</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <form onsubmit="saveCancelar(event)" style="padding:20px">
+      <div class="alert alert-warning">As parcelas pendentes/suspensas de <strong>${esc(a?.nome)}</strong> serão marcadas como <strong>canceladas</strong>. Parcelas pagas ficam no histórico.</div>
+      <div class="form-group"><label>Motivo</label><textarea name="motivo" rows="3"></textarea></div>
+      <input type="hidden" name="aluno_id" value="${alunoId}">
+      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Voltar</button>
+        <button type="submit" class="btn btn-danger">Confirmar cancelamento</button>
+      </div>
+    </form>`);
+}
+async function saveCancelar(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target); const alunoId = fd.get('aluno_id'); const motivo = fd.get('motivo').trim();
+  const btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
+  const { error } = await db.from('alunos').update({ status:'cancelado' }).eq('id', alunoId);
+  if (error) { showToast('Erro: '+error.message,'error'); btn.disabled=false; return; }
+  await db.from('parcelas').update({ status:'cancelada' }).eq('aluno_id', alunoId).in('status',['pendente','suspensa']);
+  await logHistorico(alunoId, 'cancelamento', `Matrícula cancelada${motivo?': '+motivo:''}`);
+  showToast('Matrícula cancelada','success'); closeModal(); openFichaAluno(alunoId,'financeiro');
+}
+
+// ============================================================
+// 24. PAGAMENTOS DE ALUNOS — painel mensal + inadimplentes
+// ============================================================
+async function renderCobrancas() {
+  if (!can('pagamentos_ver')) return semPermissao();
+  if (!_D.cob) { const c = getCurrentMonthYear(); _D.cob = { mes:c.mes, ano:c.ano, filtro:'todas' }; }
+  const { mes, ano } = _D.cob;
+  const ini = monthStart(mes, ano), fim = monthEnd(mes, ano), hoje = todayISO();
+
+  const [{ data: doMes, error }, { data: atrasadas }, { data: recebidas }] = await Promise.all([
+    db.from('parcelas').select('*, alunos(id,nome,telefone,status)').gte('vencimento', ini).lte('vencimento', fim).neq('status','cancelada').order('vencimento'),
+    db.from('parcelas').select('*, alunos(id,nome,telefone,status)').eq('status','pendente').lt('vencimento', hoje).order('vencimento'),
+    db.from('parcelas').select('id,valor_pago,valor,desconto,data_pagamento').eq('status','pago').gte('data_pagamento', ini).lte('data_pagamento', fim),
+  ]);
+  if (error) { setContent(`<div class="alert alert-warning">Erro: ${error.message}<br><span class="text-muted">Você já rodou o SQL das tabelas novas no Supabase?</span></div>`); return; }
+
+  _D.parcelas = {};
+  [...(doMes||[]), ...(atrasadas||[])].forEach(p => { _D.parcelas[p.id] = p; });
+
+  const previsto  = (doMes||[]).filter(p=>p.status==='pendente'||p.status==='pago').reduce((s,p)=>s+valorLiquido(p),0);
+  const recebido  = (recebidas||[]).reduce((s,p)=>s+(Number(p.valor_pago)||valorLiquido(p)),0);
+  const pendMes   = (doMes||[]).filter(p=>p.status==='pendente').reduce((s,p)=>s+valorLiquido(p),0);
+  const totAtraso = (atrasadas||[]).reduce((s,p)=>s+valorLiquido(p),0);
+
+  // inadimplentes agrupados por aluno
+  const porAluno = {};
+  (atrasadas||[]).forEach(p => {
+    if (!p.alunos) return;
+    const k = p.alunos.id;
+    porAluno[k] = porAluno[k] || { aluno:p.alunos, parcelas:[], total:0, maxDias:0 };
+    porAluno[k].parcelas.push(p);
+    porAluno[k].total += valorLiquido(p);
+    porAluno[k].maxDias = Math.max(porAluno[k].maxDias, daysSince(p.vencimento));
+  });
+  const inad = Object.values(porAluno).sort((a,b)=>b.maxDias-a.maxDias);
+
+  const lista = _D.cob.filtro==='atrasadas' ? (atrasadas||[])
+              : (doMes||[]).filter(p => _D.cob.filtro==='todas' ? true
+                  : _D.cob.filtro==='pagas' ? p.status==='pago'
+                  : _D.cob.filtro==='pendentes' ? p.status==='pendente' : true);
+  const podeEd = can('pagamentos_editar');
+  const prev = addMonthsYM(ano, mes, -1), next = addMonthsYM(ano, mes, 1);
+
+  setContent(`
+    <div class="page-header">
+      <h2>Pagamentos de Alunos 💳</h2>
+      <div class="month-nav">
+        <button class="btn btn-sm btn-secondary" onclick="cobMes(${prev.ano},${prev.mes})">‹</button>
+        <strong>${MONTHS[mes]} ${ano}</strong>
+        <button class="btn btn-sm btn-secondary" onclick="cobMes(${next.ano},${next.mes})">›</button>
+      </div>
+    </div>
+    <div class="stats-grid" style="margin-bottom:18px">
+      ${statCard('📅', formatCurrency(previsto), `Previsto em ${MONTHS[mes]}`)}
+      ${statCard('✅', formatCurrency(recebido), `Recebido em ${MONTHS[mes]}`)}
+      ${statCard('⏳', formatCurrency(pendMes), 'A receber no mês')}
+      ${statCard('⚠️', formatCurrency(totAtraso), `Em atraso (${inad.length} aluno${inad.length===1?'':'s'})`, "cobFiltro('atrasadas')")}
+    </div>
+
+    ${inad.length ? `
+    <div class="card">
+      <div class="card-header"><h3>⚠️ Inadimplentes</h3><span class="text-muted">Parcelas vencidas em qualquer mês</span></div>
+      <div class="card-body">
+        ${inad.map(i => `
+          <div class="list-item">
+            <div class="list-item-left">
+              <div class="list-item-title row-click" onclick="openFichaAluno('${i.aluno.id}','financeiro')">${esc(i.aluno.nome)}</div>
+              <div class="list-item-sub">${i.parcelas.length} parcela(s) • até ${i.maxDias} dia(s) de atraso</div>
+            </div>
+            <div class="list-item-right">
+              <strong class="text-danger">${formatCurrency(i.total)}</strong>
+              ${waBtn(i.aluno.telefone, msgCobranca(i.aluno, i.parcelas), 'Lembrar')}
+              <button class="btn btn-sm btn-secondary" onclick="openFichaAluno('${i.aluno.id}','financeiro')">Ficha</button>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <div class="card">
+      <div class="card-body" style="padding-bottom:0">
+        <div class="toolbar">
+          <input type="text" class="search-input" placeholder="🔍 Buscar aluno…" oninput="filterCob(this.value)">
+          <div class="chips">
+            ${[['todas','Todas do mês'],['pendentes','Pendentes'],['pagas','Pagas'],['atrasadas','Atrasadas (todas)']].map(([k,l]) =>
+              `<button class="chip ${_D.cob.filtro===k?'active':''}" onclick="cobFiltro('${k}')">${l}</button>`).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table class="table">
+          <thead><tr><th>Aluno</th><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Status</th><th>Pagamento</th><th>Ações</th></tr></thead>
+          <tbody id="cob-tbody">
+            ${lista.length ? lista.map(p => `
+              <tr data-n="${esc((p.alunos?.nome||'').toLowerCase())}" class="row-${parcelaEstado(p)}">
+                <td><strong class="row-click" onclick="openFichaAluno('${p.aluno_id}','financeiro')">${esc(p.alunos?.nome)||'—'}</strong>
+                    ${p.alunos?.status==='trancado' ? ' <span class="badge badge-info">Trancado</span>' : ''}</td>
+                <td>${p.numero}</td>
+                <td>${formatDate(p.vencimento)}</td>
+                <td><strong>${formatCurrency(valorLiquido(p))}</strong></td>
+                <td>${parcelaBadge(p)}</td>
+                <td>${p.status==='pago' ? `${formatDate(p.data_pagamento)}<br><span class="text-muted">${formaLabel(p.forma_pagamento)}</span>` : '—'}</td>
+                <td><div class="action-btns">
+                  ${podeEd && p.status==='pendente' ? `<button class="btn btn-sm btn-success" onclick="openModalPagar('${p.id}','cobrancas')">💵 Pagar</button>` : ''}
+                  ${waBtn(p.alunos?.telefone, msgCobranca(p.alunos||{nome:''}, [p]), '')}
+                  <button class="btn btn-sm btn-secondary" onclick="openFichaAluno('${p.aluno_id}','financeiro')">Ficha</button>
+                </div></td>
+              </tr>`).join('')
+            : `<tr><td colspan="7" class="empty-state">Nenhuma parcela ${_D.cob.filtro==='atrasadas'?'atrasada 🎉':'neste mês'}.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>`);
+}
+function cobMes(ano, mes) { _D.cob.ano = ano; _D.cob.mes = mes; renderCobrancas(); }
+function cobFiltro(f) { _D.cob.filtro = f; renderCobrancas(); }
+function filterCob(q) {
+  q = (q||'').toLowerCase();
+  document.querySelectorAll('#cob-tbody tr[data-n]').forEach(tr => { tr.style.display = tr.dataset.n.includes(q) ? '' : 'none'; });
+}
+
+// ============================================================
+// 25. CRM — funil de potenciais alunos (Kanban)
+// ============================================================
+const ETAPAS = [
+  { id:'novo',                  label:'Novo contato',          icon:'✨' },
+  { id:'contato',               label:'Em conversa',           icon:'💬' },
+  { id:'experimental_agendada', label:'Experimental agendada', icon:'📅' },
+  { id:'experimental_feita',    label:'Experimental feita',    icon:'🔬' },
+  { id:'proposta',              label:'Proposta enviada',      icon:'📄' },
+  { id:'matriculado',           label:'Matriculado',           icon:'🎓', final:true },
+  { id:'perdido',               label:'Perdido',               icon:'❌', final:true },
+];
+const etapaInfo = id => ETAPAS.find(e=>e.id===id) || { label:id, icon:'•' };
+
+async function renderCRM() {
+  if (!can('crm_ver')) return semPermissao();
+  const [{ data: leads, error }, { data: users }] = await Promise.all([
+    db.from('leads').select('*, profiles!leads_responsavel_id_fkey(name)').order('updated_at',{ascending:false}),
+    db.from('profiles').select('id,name,role').eq('ativo', true).order('name'),
+  ]);
+  if (error) { setContent(`<div class="alert alert-warning">Erro: ${error.message}<br><span class="text-muted">Você já rodou o SQL das tabelas novas no Supabase?</span></div>`); return; }
+
+  _D.leads = {}; (leads||[]).forEach(l => { _D.leads[l.id] = l; });
+  _D.users = users||[];
+
+  const { mes, ano } = getCurrentMonthYear();
+  const ini = monthStart(mes, ano);
+  const ativos   = (leads||[]).filter(l => !etapaInfo(l.etapa).final);
+  const novosMes = (leads||[]).filter(l => l.created_at >= ini).length;
+  const matrMes  = (leads||[]).filter(l => l.etapa==='matriculado' && l.updated_at >= ini).length;
+  const matr = (leads||[]).filter(l=>l.etapa==='matriculado').length, perd = (leads||[]).filter(l=>l.etapa==='perdido').length;
+  const taxa = (matr+perd) ? Math.round(matr/(matr+perd)*100) : 0;
+  const podeEd = can('crm_editar');
+  _D.crmShowFinal = _D.crmShowFinal ?? false;
+
+  setContent(`
+    <div class="page-header">
+      <h2>CRM — Funil de alunos 🎯</h2>
+      ${podeEd ? '<button class="btn btn-primary" onclick="openModalLead(null)">+ Novo lead</button>' : ''}
+    </div>
+    <div class="stats-grid" style="margin-bottom:16px">
+      ${statCard('🎯', ativos.length, 'Leads no funil')}
+      ${statCard('✨', novosMes, `Novos em ${MONTHS[mes]}`)}
+      ${statCard('🎓', matrMes, `Matriculados em ${MONTHS[mes]}`)}
+      ${statCard('📈', taxa+'%', 'Taxa de conversão')}
+    </div>
+    <div class="toolbar" style="margin-bottom:12px">
+      <input type="text" class="search-input" placeholder="🔍 Buscar lead…" oninput="filterLeads(this.value)">
+      <label class="chip ${_D.crmShowFinal?'active':''}" style="cursor:pointer">
+        <input type="checkbox" ${_D.crmShowFinal?'checked':''} onchange="_D.crmShowFinal=this.checked;renderCRM()" style="display:none"> Mostrar matriculados / perdidos
+      </label>
+    </div>
+    <div class="kanban" id="kanban">
+      ${ETAPAS.filter(e => !e.final || _D.crmShowFinal).map(e => {
+        const ls = (leads||[]).filter(l => l.etapa===e.id);
+        return `
+        <div class="kanban-col" data-etapa="${e.id}" ${podeEd?'ondragover="event.preventDefault();this.classList.add(\'over\')" ondragleave="this.classList.remove(\'over\')" ondrop="dropLead(event)"':''}>
+          <div class="kanban-head"><span>${e.icon} ${e.label}</span><span class="kanban-count">${ls.length}</span></div>
+          <div class="kanban-body">
+            ${ls.map(l => leadCard(l, podeEd)).join('') || '<div class="kanban-empty">—</div>'}
+          </div>
+        </div>`; }).join('')}
+    </div>`);
+}
+
+function leadCard(l, podeEd) {
+  const dias = daysSince((l.updated_at||l.created_at).slice(0,10));
+  return `
+    <div class="kanban-card" data-n="${esc((l.nome+' '+(l.telefone||'')+' '+(l.idioma||'')).toLowerCase())}"
+         ${podeEd?`draggable="true" ondragstart="event.dataTransfer.setData('text','${l.id}')"`:''} onclick="openLeadDetail('${l.id}')">
+      <div class="kc-title">${esc(l.nome)}</div>
+      <div class="kc-tags">
+        ${l.idioma ? `<span class="badge badge-info">${esc(l.idioma)}</span>` : ''}
+        ${l.origem ? `<span class="badge badge-gray">${esc(l.origem)}</span>` : ''}
+      </div>
+      <div class="kc-foot">
+        <span class="text-muted">${dias===0?'hoje':dias+'d'} ${l.profiles?.name ? '• '+esc(l.profiles.name.split(' ')[0]) : ''}</span>
+        ${l.telefone ? `<a class="wa-icon" href="${waLink(l.telefone)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">💬</a>` : ''}
+      </div>
+    </div>`;
+}
+function filterLeads(q) {
+  q = (q||'').toLowerCase();
+  document.querySelectorAll('.kanban-card').forEach(c => { c.style.display = c.dataset.n.includes(q) ? '' : 'none'; });
+}
+async function dropLead(ev) {
+  ev.preventDefault();
+  const col = ev.currentTarget; col.classList.remove('over');
+  const id = ev.dataTransfer.getData('text'); const etapa = col.dataset.etapa;
+  if (id && etapa) moverLead(id, etapa);
+}
+
+async function moverLead(id, etapa, motivo) {
+  const l = _D.leads?.[id]; if (!l || l.etapa===etapa) return;
+  if (etapa==='perdido' && motivo===undefined) { openModalPerdido(id); return; }
+  if (etapa==='matriculado' && !l.aluno_id) { openModalMatricular(id); return; }
+  const row = { etapa }; if (motivo) row.motivo_perda = motivo;
+  const { error } = await db.from('leads').update(row).eq('id', id);
+  if (error) { showToast('Erro: '+error.message,'error'); return; }
+  await db.from('lead_notas').insert({ lead_id:id, user_id:user.id, texto:`Movido para "${etapaInfo(etapa).label}"${motivo?' — '+motivo:''}` });
+  showToast(`${l.nome} → ${etapaInfo(etapa).label}`,'success');
+  closeModal(); renderCRM();
+}
+
+function openModalPerdido(id) {
+  openModal(`
+    <div class="modal-header"><h3>❌ Marcar como perdido</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <form onsubmit="event.preventDefault();moverLead('${id}','perdido',this.motivo.value.trim())" style="padding:20px">
+      <div class="form-group"><label>Motivo</label>
+        <select name="motivo"><option value="">Selecione…</option>
+          ${['Preço','Horário','Sem retorno','Escolheu outra escola','Desistiu','Outro'].map(m=>`<option>${m}</option>`).join('')}
+        </select></div>
+      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Voltar</button>
+        <button type="submit" class="btn btn-danger">Confirmar</button>
+      </div>
+    </form>`);
+}
+
+function openModalLead(id) {
+  if (!can('crm_editar')) { showToast('Sem permissão para editar o CRM','error'); return; }
+  const l = id ? _D.leads?.[id] : null;
+  openModal(`
+    <div class="modal-header"><h3>${l?'Editar lead':'Novo lead'}</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <form onsubmit="saveLead(event)" style="padding:20px">
+      <div class="form-group"><label>Nome *</label><input type="text" name="nome" value="${esc(l?.nome)}" required></div>
+      <div class="form-row">
+        <div class="form-group"><label>Telefone (WhatsApp)</label><input type="tel" name="telefone" value="${esc(l?.telefone)}"></div>
+        <div class="form-group"><label>Email</label><input type="email" name="email" value="${esc(l?.email)}"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Idioma de interesse</label><select name="idioma">${selectOptions(IDIOMAS, l?.idioma)}</select></div>
+        <div class="form-group"><label>Origem</label><select name="origem">${selectOptions(ORIGENS, l?.origem)}</select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Etapa</label><select name="etapa">${ETAPAS.filter(e=>!e.final).map(e=>`<option value="${e.id}" ${(l?.etapa||'novo')===e.id?'selected':''}>${e.icon} ${e.label}</option>`).join('')}</select></div>
+        <div class="form-group"><label>Responsável</label><select name="responsavel_id">${selectOptions((_D.users||[]).map(u=>({id:u.id,label:u.name})), l?.responsavel_id || (l?null:user.id))}</select></div>
+      </div>
+      <div class="form-group"><label>Observações</label><textarea name="observacoes" rows="3">${esc(l?.observacoes)}</textarea></div>
+      <input type="hidden" name="id" value="${l?.id||''}">
+      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${l?'Salvar':'Criar lead'}</button>
+      </div>
+    </form>`);
+}
+async function saveLead(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target); const id = fd.get('id');
+  const g = k => (fd.get(k)||'').toString().trim() || null;
+  const row = { nome:g('nome'), telefone:g('telefone'), email:g('email'), idioma:g('idioma'), origem:g('origem'),
+                etapa:g('etapa')||'novo', responsavel_id:g('responsavel_id'), observacoes:g('observacoes') };
+  const btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
+  const { error } = id ? await db.from('leads').update(row).eq('id', id)
+                       : await db.from('leads').insert({ ...row, created_by:user.id });
+  if (error) { showToast('Erro: '+error.message,'error'); btn.disabled=false; return; }
+  showToast(id?'Lead atualizado!':'Lead criado! ✨','success'); closeModal(); renderCRM();
+}
+
+async function openLeadDetail(id) {
+  const l = _D.leads?.[id]; if (!l) return;
+  const { data: notas } = await db.from('lead_notas').select('*, profiles(name)').eq('lead_id', id).order('created_at',{ascending:false});
+  const e = etapaInfo(l.etapa); const podeEd = can('crm_editar');
+  const info = (lb, v) => `<div class="info-item"><span class="info-label">${lb}</span><span class="info-value">${v||'—'}</span></div>`;
+  openModal(`
+    <div class="modal-header">
+      <h3>${esc(l.nome)} <span class="badge badge-info">${e.icon} ${e.label}</span></h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div style="padding:20px">
+      <div class="ficha-actions" style="margin-bottom:14px">
+        ${waBtn(l.telefone, `Olá ${l.nome.split(' ')[0]}, tudo bem? Aqui é da VMLI Idiomas 😊`)}
+        ${podeEd ? `<button class="btn btn-sm btn-secondary" onclick="openModalLead('${l.id}')">✏️ Editar</button>` : ''}
+        ${podeEd && !e.final ? `<button class="btn btn-sm btn-info" onclick="openModalAgendarExp('${l.id}')">📅 Agendar experimental</button>` : ''}
+        ${podeEd && l.etapa!=='matriculado' ? `<button class="btn btn-sm btn-success" onclick="openModalMatricular('${l.id}')">🎓 Matricular</button>` : ''}
+        ${l.aluno_id ? `<button class="btn btn-sm btn-primary" onclick="closeModal();openFichaAluno('${l.aluno_id}')">Ver ficha do aluno</button>` : ''}
+        ${podeEd && !e.final ? `<button class="btn btn-sm btn-danger" onclick="openModalPerdido('${l.id}')">❌ Perdido</button>` : ''}
+      </div>
+      ${podeEd ? `<div class="form-group"><label>Mover para</label>
+        <select onchange="if(this.value)moverLead('${l.id}',this.value)">
+          ${ETAPAS.map(x=>`<option value="${x.id}" ${x.id===l.etapa?'selected':''}>${x.icon} ${x.label}</option>`).join('')}
+        </select></div>` : ''}
+      <div class="info-grid" style="margin-bottom:16px">
+        ${info('Telefone', esc(l.telefone))}${info('Email', esc(l.email))}
+        ${info('Idioma', esc(l.idioma))}${info('Origem', esc(l.origem))}
+        ${info('Responsável', esc(l.profiles?.name))}${info('Criado em', formatDateTime(l.created_at))}
+        ${l.motivo_perda ? info('Motivo da perda', esc(l.motivo_perda)) : ''}
+        ${l.observacoes ? `<div class="info-item full"><span class="info-label">Observações</span><span class="info-value">${esc(l.observacoes)}</span></div>` : ''}
+      </div>
+      <h4 style="margin:0 0 10px">📝 Anotações</h4>
+      ${podeEd ? `<form onsubmit="saveLeadNota(event,'${l.id}')" class="nota-form">
+        <input type="text" name="texto" placeholder="ex: Ligou pedindo horário à noite…" required>
+        <button type="submit" class="btn btn-sm btn-primary">Adicionar</button>
+      </form>` : ''}
+      <div class="timeline">
+        ${(notas||[]).length ? notas.map(n => `
+          <div class="tl-item"><div class="tl-icon">•</div><div class="tl-body">
+            <div class="tl-text">${esc(n.texto)}</div>
+            <div class="tl-meta">${formatDateTime(n.created_at)} ${n.profiles?.name?'• '+esc(n.profiles.name):''}</div>
+          </div></div>`).join('') : '<p class="empty-state">Nenhuma anotação ainda.</p>'}
+      </div>
+    </div>`);
+}
+async function saveLeadNota(e, leadId) {
+  e.preventDefault();
+  const texto = e.target.texto.value.trim(); if (!texto) return;
+  const { error } = await db.from('lead_notas').insert({ lead_id:leadId, texto, user_id:user.id });
+  if (error) { showToast('Erro: '+error.message,'error'); return; }
+  await db.from('leads').update({ updated_at: new Date().toISOString() }).eq('id', leadId);
+  const { data: l } = await db.from('leads').select('*, profiles!leads_responsavel_id_fkey(name)').eq('id', leadId).single();
+  if (l) _D.leads[leadId] = l;
+  openLeadDetail(leadId);
+}
+
+async function openModalAgendarExp(leadId) {
+  const l = _D.leads?.[leadId]; if (!l) return;
+  const [{ data: turmas }, { data: profs }] = await Promise.all([
+    db.from('turmas').select('id,codigo,nome,horario,modalidade').eq('status','active').order('codigo'),
+    db.from('profiles').select('id,name').eq('role','professor').eq('ativo',true).order('name'),
+  ]);
+  openModal(`
+    <div class="modal-header"><h3>📅 Agendar aula experimental</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <form onsubmit="saveAgendarExp(event)" style="padding:20px">
+      <div class="alert alert-info">${esc(l.nome)} ${l.idioma?'• '+esc(l.idioma):''}</div>
+      <div class="form-row">
+        <div class="form-group"><label>Data da aula *</label><input type="date" name="data_aula" value="${todayISO()}" required></div>
+        <div class="form-group"><label>Modalidade *</label>
+          <select name="modalidade" required><option value="group">Grupo</option><option value="individual">Individual</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Turma (opcional)</label>
+          <select name="turma_id">${selectOptions((turmas||[]).map(t=>({id:t.id,label:`${t.codigo} ${t.nome?'— '+t.nome:''} ${t.horario?'('+t.horario+')':''}`})), '', 'Sem turma / individual')}</select></div>
+        <div class="form-group"><label>Professor *</label>
+          <select name="professor_id" required>${selectOptions((profs||[]).map(p=>({id:p.id,label:p.name})))}</select></div>
+      </div>
+      <div class="form-group"><label>Observações</label><input type="text" name="notas" value="${esc(l.observacoes)}"></div>
+      <input type="hidden" name="lead_id" value="${leadId}">
+      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Agendar</button>
+      </div>
+    </form>`);
+}
+async function saveAgendarExp(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target); const l = _D.leads?.[fd.get('lead_id')];
+  const btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
+  try {
+    const { data: exp, error } = await db.from('experimentais').insert({
+      nome:l.nome, email:l.email, telefone:l.telefone, modalidade:fd.get('modalidade'),
+      turma_id: fd.get('turma_id')||null, professor_id: fd.get('professor_id'),
+      data_aula: fd.get('data_aula'), notas: fd.get('notas').trim()||null, status:'pendente',
+    }).select().single();
+    if (error) throw error;
+    await db.from('leads').update({ etapa:'experimental_agendada', experimental_id: exp.id }).eq('id', l.id);
+    await db.from('lead_notas').insert({ lead_id:l.id, user_id:user.id, texto:`Experimental agendada para ${formatDate(fd.get('data_aula'))}` });
+    showToast('Experimental agendada! 📅','success'); closeModal(); renderCRM();
+  } catch (err) { showToast('Erro: '+err.message,'error'); btn.disabled=false; }
+}
+
+async function openModalMatricular(leadId) {
+  if (!can('crm_editar')) return;
+  const l = _D.leads?.[leadId]; if (!l) return;
+  const { data: turmas } = await db.from('turmas').select('id,codigo,nome,horario').eq('status','active').order('codigo');
+  openModal(`
+    <div class="modal-header"><h3>🎓 Matricular ${esc(l.nome)}</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <form onsubmit="saveMatricular(event)" style="padding:20px">
+      <div class="form-group"><label>Nome completo *</label><input type="text" name="nome" value="${esc(l.nome)}" required></div>
+      <div class="form-row">
+        <div class="form-group"><label>Telefone</label><input type="tel" name="telefone" value="${esc(l.telefone)}"></div>
+        <div class="form-group"><label>Email</label><input type="email" name="email" value="${esc(l.email)}"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Idioma</label><select name="idioma">${selectOptions(IDIOMAS, l.idioma)}</select></div>
+        <div class="form-group"><label>Turma (opcional)</label>
+          <select name="turma_id">${selectOptions((turmas||[]).map(t=>({id:t.id,label:`${t.codigo} ${t.nome?'— '+t.nome:''}`})), '', 'Definir depois')}</select></div>
+      </div>
+      ${can('pagamentos_editar') ? `<details class="plano-box" open><summary>💰 Plano de pagamento</summary>${planoFields('p_')}</details>` : ''}
+      <input type="hidden" name="lead_id" value="${leadId}">
+      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-success">✓ Confirmar matrícula</button>
+      </div>
+    </form>`);
+}
+async function saveMatricular(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target); const l = _D.leads?.[fd.get('lead_id')];
+  const g = k => (fd.get(k)||'').toString().trim() || null;
+  const btn = e.target.querySelector('[type=submit]'); btn.disabled = true; btn.textContent = 'Matriculando…';
+  try {
+    const { data: aluno, error } = await db.from('alunos').insert({
+      nome:g('nome'), telefone:g('telefone'), email:g('email'), idioma:g('idioma'), origem:l.origem,
+      notas:l.observacoes, data_matricula: todayISO(), status:'ativo',
+    }).select().single();
+    if (error) throw error;
+    const turmaId = g('turma_id');
+    if (turmaId) { const { error: e2 } = await db.from('turma_alunos').insert({ turma_id:turmaId, aluno_id:aluno.id }); if (e2) throw e2; }
+    const plano = can('pagamentos_editar') ? lerPlano(fd,'p_') : null;
+    if (plano) await aplicarPlano(aluno.id, plano, 'novo');
+    await db.from('leads').update({ etapa:'matriculado', aluno_id:aluno.id }).eq('id', l.id);
+    if (l.experimental_id) await db.from('experimentais').update({ status:'convertido', aluno_id:aluno.id }).eq('id', l.experimental_id);
+    await db.from('lead_notas').insert({ lead_id:l.id, user_id:user.id, texto:'Matriculado 🎓' });
+    await logHistorico(aluno.id, 'nota', `Aluno criado a partir do CRM (origem: ${l.origem||'—'})`);
+    showToast(`${aluno.nome} matriculado! 🎉`,'success'); closeModal(); openFichaAluno(aluno.id,'financeiro');
+  } catch (err) { showToast('Erro: '+err.message,'error'); btn.disabled=false; btn.textContent='✓ Confirmar matrícula'; }
+}
+
+// ============================================================
+// 26. USUÁRIOS & PERMISSÕES (admin)
+// ============================================================
+async function renderUsuarios() {
+  if (profile?.role!=='admin') return semPermissao('Somente administradores gerenciam usuários.');
+  const { data: users, error } = await db.from('profiles').select('*').order('role').order('name');
+  if (error) { setContent(`<div class="alert alert-warning">Erro: ${error.message}</div>`); return; }
+  _D.users = users||[]; _D.usersMap = {}; users?.forEach(u => { _D.usersMap[u.id]=u; });
+
+  setContent(`
+    <div class="page-header">
+      <h2>Usuários & Permissões 🔐</h2>
+      <button class="btn btn-primary" onclick="openModalUsuario(null)">+ Novo usuário</button>
+    </div>
+    <div class="alert alert-info">
+      Cada perfil tem permissões padrão (Secretaria: alunos, pagamentos, trancamento e CRM • Financeiro: alunos e pagamentos • Professor: nenhuma).
+      Clique em <strong>Permissões</strong> para liberar ou bloquear telas para uma pessoa específica.
+    </div>
+    <div class="card"><div class="table-wrapper"><table class="table">
+      <thead><tr><th>Nome</th><th>Email</th><th>Perfil</th><th>Permissões</th><th>Status</th><th>Ações</th></tr></thead>
+      <tbody>
+        ${(users||[]).map(u => {
+          const ativas = PERMS.filter(p=>can(p.key,u)).length;
+          const custom = Object.keys(u.permissoes||{}).length;
+          return `<tr>
+            <td><div class="user-cell"><div class="mini-avatar">${initials(u.name)}</div>${esc(u.name)}${u.id===user.id?' <span class="text-muted">(você)</span>':''}</div></td>
+            <td>${esc(u.email)}</td>
+            <td><span class="role-badge role-${u.role}">${getRoleLabel(u.role)}</span></td>
+            <td>${u.role==='admin' ? '<span class="badge badge-primary">Todas</span>' : `<span class="badge ${ativas?'badge-success':'badge-gray'}">${ativas}/${PERMS.length}</span> ${custom?'<span class="badge badge-warning" title="Tem ajustes individuais">personalizado</span>':''}`}</td>
+            <td><span class="badge ${u.ativo!==false?'badge-success':'badge-gray'}">${u.ativo!==false?'Ativo':'Inativo'}</span></td>
+            <td><div class="action-btns">
+              <button class="btn btn-sm btn-primary" onclick="openModalPermissoes('${u.id}')">🔐 Permissões</button>
+              ${u.id!==user.id ? `<button class="btn btn-sm ${u.ativo!==false?'btn-danger':'btn-success'}" onclick="toggleUsuarioAtivo('${u.id}',${u.ativo!==false})">${u.ativo!==false?'Desativar':'Ativar'}</button>` : ''}
+            </div></td>
+          </tr>`; }).join('')}
+      </tbody></table></div></div>`);
+}
+
+function openModalPermissoes(id) {
+  const u = _D.usersMap?.[id]; if (!u) return;
+  const render = role => PERMS.map(p => {
+    const on = can(p.key, { role, permissoes: u.permissoes });
+    return `<label class="perm-row ${role==='admin'?'disabled':''}">
+      <div><div class="perm-label">${p.label}</div><div class="perm-desc">${p.desc}</div></div>
+      <span class="switch"><input type="checkbox" name="perm_${p.key}" ${on?'checked':''} ${role==='admin'?'disabled':''}><span class="slider"></span></span>
+    </label>`; }).join('');
+  openModal(`
+    <div class="modal-header"><h3>🔐 Permissões — ${esc(u.name)}</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <form onsubmit="savePermissoes(event)" style="padding:20px">
+      <div class="form-row">
+        <div class="form-group"><label>Nome</label><input type="text" name="name" value="${esc(u.name)}" required></div>
+        <div class="form-group"><label>Perfil</label>
+          <select name="role" onchange="document.getElementById('perm-list').innerHTML=permListHTML('${u.id}',this.value)">
+            ${ROLES.map(r=>`<option value="${r.id}" ${u.role===r.id?'selected':''}>${r.label}</option>`).join('')}
+          </select></div>
+      </div>
+      <div class="perm-list" id="perm-list">${render(u.role)}</div>
+      <p class="hint" style="margin-top:8px">Administrador sempre tem todas as permissões. Para voltar ao padrão do perfil, clique em "Restaurar padrão".</p>
+      <input type="hidden" name="id" value="${u.id}">
+      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
+        <button type="button" class="btn btn-secondary" onclick="restaurarPadrao('${u.id}')">Restaurar padrão</button>
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+      </div>
+    </form>`);
+}
+function permListHTML(id, role) {
+  const u = _D.usersMap?.[id];
+  return PERMS.map(p => {
+    const on = can(p.key, { role, permissoes: {} });
+    return `<label class="perm-row ${role==='admin'?'disabled':''}">
+      <div><div class="perm-label">${p.label}</div><div class="perm-desc">${p.desc}</div></div>
+      <span class="switch"><input type="checkbox" name="perm_${p.key}" ${on?'checked':''} ${role==='admin'?'disabled':''}><span class="slider"></span></span>
+    </label>`; }).join('');
+}
+async function savePermissoes(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target); const id = fd.get('id'); const role = fd.get('role');
+  const permissoes = {};
+  if (role!=='admin') PERMS.forEach(p => { permissoes[p.key] = fd.get('perm_'+p.key)==='on'; });
+  const btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
+  const { error } = await db.from('profiles').update({ name: fd.get('name').trim(), role, permissoes }).eq('id', id);
+  if (error) { showToast('Erro: '+error.message,'error'); btn.disabled=false; return; }
+  showToast('Permissões salvas! 🔐','success'); closeModal();
+  if (id===user.id) { await loadProfile(user); showApp(); showTab('usuarios'); } else renderUsuarios();
+}
+async function restaurarPadrao(id) {
+  const { error } = await db.from('profiles').update({ permissoes: {} }).eq('id', id);
+  if (error) { showToast('Erro: '+error.message,'error'); return; }
+  showToast('Permissões restauradas ao padrão do perfil','success'); closeModal(); renderUsuarios();
+}
+async function toggleUsuarioAtivo(id, ativo) {
+  const { error } = await db.from('profiles').update({ ativo: !ativo }).eq('id', id);
+  if (error) { showToast('Erro: '+error.message,'error'); return; }
+  showToast(ativo?'Usuário desativado':'Usuário ativado','success'); renderUsuarios();
+}
+
+function openModalUsuario() {
+  openModal(`
+    <div class="modal-header"><h3>Novo usuário</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <form onsubmit="saveUsuario(event)" style="padding:20px">
+      <div class="form-group"><label>Nome completo *</label><input type="text" name="name" required></div>
+      <div class="form-group"><label>Email *</label><input type="email" name="email" required><span class="hint">Senha padrão: VMLI2024! (peça para trocar no primeiro acesso)</span></div>
+      <div class="form-row">
+        <div class="form-group"><label>Perfil *</label>
+          <select name="role" onchange="document.getElementById('va-box').style.display=this.value==='professor'?'':'none'">
+            ${ROLES.filter(r=>r.id!=='admin').map(r=>`<option value="${r.id}">${r.label}</option>`).join('')}
+            <option value="admin">Administrador</option>
+          </select></div>
+        <div class="form-group" id="va-box" style="display:none"><label>Valor por aula (R$)</label><input type="number" name="valor_aula" step="0.01" min="0" value="0"></div>
+      </div>
+      <p class="hint">As permissões começam no padrão do perfil e podem ser ajustadas depois.</p>
+      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Criar usuário</button>
+      </div>
+    </form>`);
+  document.querySelector('#modal-content select[name=role]').value = 'secretaria';
+}
+async function saveUsuario(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const btn = e.target.querySelector('[type=submit]'); btn.disabled = true; btn.textContent = 'Criando…';
+  try {
+    await createAuthUser({ name: fd.get('name').trim(), email: fd.get('email').trim(), role: fd.get('role'), valor_aula: parseFloat(fd.get('valor_aula')||0) });
+    showToast('Usuário criado! Senha padrão: VMLI2024!','success'); closeModal(); renderUsuarios();
+  } catch (err) {
+    let msg = 'Erro: ' + err.message;
+    if (/rate limit/i.test(err.message)) msg = '⚠️ Limite de cadastros atingido. Aguarde alguns minutos.';
+    else if (/already/i.test(err.message)) msg = 'Este email já está cadastrado.';
+    showToast(msg,'error'); btn.disabled=false; btn.textContent='Criar usuário';
+  }
+}
+
+// Cria conta de login + profile preservando a sessão do admin (mesma lógica usada em Professores)
+async function createAuthUser({ name, email, role, valor_aula=0 }) {
+  const { data: adminSess } = await db.auth.getSession();
+  const { data: nu, error: signErr } = await db.auth.signUp({
+    email, password: 'VMLI2024!', options: { data: { name, role, valor_aula } }
+  });
+  if (signErr) throw signErr;
+  if (adminSess?.session) {
+    setTimeout(async () => {
+      const { data: cur } = await db.auth.getSession();
+      if (!cur?.session || cur.session.user.id !== user.id) {
+        await db.auth.setSession({ access_token: adminSess.session.access_token, refresh_token: adminSess.session.refresh_token });
+      }
+    }, 800);
+  }
+  if (nu?.user) {
+    await new Promise(r => setTimeout(r, 1200));
+    await db.from('profiles').upsert({ id: nu.user.id, name, email, role, valor_aula, ativo: true });
+  }
+  return nu?.user;
+}
+
+// ============================================================
+// 27. DASHBOARD — resumo financeiro de alunos + CRM
+// ============================================================
+async function financeSnapshot() {
+  const out = { previstoMes:0, recebidoMes:0, atrasado:0, alunosAtraso:0, leadsAtivos:0, ok:false };
+  try {
+    const { mes, ano } = getCurrentMonthYear(); const ini = monthStart(mes,ano), fim = monthEnd(mes,ano);
+    const q = [];
+    if (can('pagamentos_ver')) {
+      q.push(db.from('parcelas').select('valor,desconto,status').gte('vencimento',ini).lte('vencimento',fim).in('status',['pendente','pago']));
+      q.push(db.from('parcelas').select('valor_pago,valor,desconto').eq('status','pago').gte('data_pagamento',ini).lte('data_pagamento',fim));
+      q.push(db.from('parcelas').select('valor,desconto,aluno_id').eq('status','pendente').lt('vencimento',todayISO()));
+    } else q.push(null,null,null);
+    q.push(can('crm_ver') ? db.from('leads').select('id,etapa').in('etapa', ETAPAS.filter(e=>!e.final).map(e=>e.id)) : null);
+    const [a,b,c,d] = await Promise.all(q);
+    if (a?.data) out.previstoMes = a.data.reduce((s,p)=>s+valorLiquido(p),0);
+    if (b?.data) out.recebidoMes = b.data.reduce((s,p)=>s+(Number(p.valor_pago)||valorLiquido(p)),0);
+    if (c?.data) { out.atrasado = c.data.reduce((s,p)=>s+valorLiquido(p),0); out.alunosAtraso = new Set(c.data.map(p=>p.aluno_id)).size; }
+    if (d?.data) out.leadsAtivos = d.data.length;
+    out.ok = !(a?.error) ;
+  } catch (_) {}
+  return out;
+}
+function snapshotHTML(s) {
+  const cards = [];
+  if (can('pagamentos_ver')) {
+    cards.push(statCard('💳', formatCurrency(s.previstoMes), 'Mensalidades previstas', "showTab('cobrancas')"));
+    cards.push(statCard('✅', formatCurrency(s.recebidoMes), 'Recebido este mês', "showTab('cobrancas')"));
+    cards.push(statCard('⚠️', formatCurrency(s.atrasado), `Em atraso (${s.alunosAtraso} aluno${s.alunosAtraso===1?'':'s'})`, "showTab('cobrancas')"));
+  }
+  if (can('crm_ver')) cards.push(statCard('🎯', s.leadsAtivos, 'Leads no funil', "showTab('crm')"));
+  if (!cards.length) return '';
+  return `<div class="stats-grid" style="margin-bottom:18px">${cards.join('')}</div>
+    ${s.alunosAtraso>0 ? `<div class="alert alert-warning">⚠️ <strong>${s.alunosAtraso} aluno(s)</strong> com parcela atrasada — ${formatCurrency(s.atrasado)}.
+      <button class="btn btn-sm btn-warning" onclick="showTab('cobrancas')">Ver inadimplentes</button></div>` : ''}`;
+}
+
+async function renderDashboardSecretaria() {
+  const { mes, ano } = getCurrentMonthYear();
+  const [{ count: alunoCount }, { count: turmaCount }, snap] = await Promise.all([
+    db.from('alunos').select('*',{count:'exact',head:true}).eq('status','ativo'),
+    db.from('turmas').select('*',{count:'exact',head:true}).eq('status','active'),
+    financeSnapshot(),
+  ]);
+  setContent(`
+    <div class="page-header">
+      <h2>Olá, ${profile?.name?.split(' ')[0]}! 👋</h2>
+      <span class="text-muted">${MONTHS[mes]} ${ano}</span>
+    </div>
+    <div class="stats-grid" style="margin-bottom:18px">
+      ${statCard('🎓', alunoCount||0, 'Alunos ativos', "showTab('alunos')")}
+      ${statCard('📚', turmaCount||0, 'Turmas ativas', "showTab('turmas')")}
+    </div>
+    ${snapshotHTML(snap)}
+    <div class="quick-actions">
+      <h3>Ações Rápidas</h3>
+      <div class="actions-grid">
+        ${can('alunos_editar') ? `<button class="action-card" onclick="showTab('alunos');setTimeout(()=>openModalAluno(null),200)"><span class="action-icon">➕</span><span>Novo Aluno</span></button>` : ''}
+        ${can('crm_editar') ? `<button class="action-card" onclick="showTab('crm');setTimeout(()=>openModalLead(null),200)"><span class="action-icon">✨</span><span>Novo Lead</span></button>` : ''}
+        ${can('pagamentos_ver') ? `<button class="action-card" onclick="showTab('cobrancas')"><span class="action-icon">💳</span><span>Pagamentos</span></button>` : ''}
+        ${can('crm_ver') ? `<button class="action-card" onclick="showTab('crm')"><span class="action-icon">🎯</span><span>CRM</span></button>` : ''}
+      </div>
+    </div>`);
 }

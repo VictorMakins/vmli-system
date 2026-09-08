@@ -29,12 +29,18 @@ const NAV = {
     { id:'historico',        icon:'📋', label:'Histórico' },
     { id:'eventos',          icon:'📅', label:'Eventos' },
     { id:'financeiro',       icon:'💰', label:'Financeiro' },
+    { id:'membros',          icon:'🎬', label:'Área de Membros' },
+  ],
+  aluno: [
+    { id:'membros',     icon:'🎬', label:'Área de Membros' },
+    { id:'minha-conta', icon:'👤', label:'Minha conta' },
   ],
   admin: [
     { id:'dashboard',     icon:'🏠', label:'Dashboard' },
     { id:'alunos',        icon:'🎓', label:'Alunos' },
     { id:'cobrancas',     icon:'💳', label:'Pagamentos de Alunos' },
     { id:'crm',           icon:'🎯', label:'CRM' },
+    { id:'membros',       icon:'🎬', label:'Área de Membros' },
     { id:'experimentais', icon:'🔬', label:'Experimentais' },
     { id:'turmas',        icon:'📚', label:'Turmas' },
     { id:'professores',   icon:'👨‍🏫', label:'Professores' },
@@ -48,6 +54,7 @@ const NAV = {
     { id:'alunos',        icon:'🎓', label:'Alunos' },
     { id:'cobrancas',     icon:'💳', label:'Pagamentos de Alunos' },
     { id:'crm',           icon:'🎯', label:'CRM' },
+    { id:'membros',       icon:'🎬', label:'Área de Membros' },
     { id:'experimentais', icon:'🔬', label:'Experimentais' },
     { id:'turmas',        icon:'📚', label:'Turmas' },
     { id:'eventos',       icon:'📅', label:'Eventos' },
@@ -57,13 +64,15 @@ const NAV = {
     { id:'alunos',     icon:'🎓', label:'Alunos' },
     { id:'cobrancas',  icon:'💳', label:'Pagamentos de Alunos' },
     { id:'crm',        icon:'🎯', label:'CRM' },
+    { id:'membros',    icon:'🎬', label:'Área de Membros' },
     { id:'eventos',    icon:'📅', label:'Eventos' },
     { id:'financeiro', icon:'💰', label:'Financeiro (Professores)' },
   ],
 };
 // Itens de menu que dependem de permissão (ver seção 20 — PERMISSÕES)
-const NAV_PERM = { alunos:'alunos_ver', cobrancas:'pagamentos_ver', crm:'crm_ver', usuarios:'__admin' };
+const NAV_PERM = { alunos:'alunos_ver', cobrancas:'pagamentos_ver', crm:'crm_ver', membros:'membros_ver', usuarios:'__admin' };
 function navAllowed(id) {
+  if (profile?.role === 'aluno') return ['membros','minha-conta'].includes(id);
   const p = NAV_PERM[id];
   if (!p) return true;
   if (p === '__admin') return profile?.role === 'admin';
@@ -130,7 +139,7 @@ function showApp() {
   rb.textContent = getRoleLabel(profile?.role);
   rb.className = `role-badge role-${profile?.role}`;
 
-  showTab('dashboard');
+  showTab(profile?.role === 'aluno' ? 'membros' : 'dashboard');
 }
 
 async function handleLogin(e) {
@@ -169,7 +178,8 @@ async function handleForgotPassword() {
 // 5. NAVEGAÇÃO
 // ============================================================
 function buildNav() {
-  const items = (NAV[profile?.role] || []).filter(i => navAllowed(i.id));
+  const items = [...(NAV[profile?.role] || [])].filter(i => navAllowed(i.id));
+  if (!items.some(i => i.id === 'minha-conta')) items.push({ id:'minha-conta', icon:'👤', label:'Minha conta' });
   const nav = document.getElementById('sidebar-nav');
   nav.innerHTML = items.map(i =>
     `<a href="#" class="nav-item" data-tab="${i.id}">
@@ -207,6 +217,8 @@ function showTab(tab) {
     case 'cobrancas':       renderCobrancas();      break;
     case 'crm':             renderCRM();            break;
     case 'usuarios':        renderUsuarios();       break;
+    case 'membros':         renderMembros();        break;
+    case 'minha-conta':     renderMinhaConta();     break;
     default:                renderDashboard();
   }
 }
@@ -224,6 +236,7 @@ function closeSidebar() {
 // 6. DASHBOARD
 // ============================================================
 async function renderDashboard() {
+  if      (profile?.role === 'aluno')      return renderMembros();
   if      (profile?.role === 'admin')      await renderDashboardAdmin();
   else if (profile?.role === 'secretaria') await renderDashboardSecretaria();
   else if (profile?.role === 'financeiro') await renderDashboardFinanceiro();
@@ -1870,11 +1883,12 @@ function monthStart(mes, ano) {
   return `${ano}-${String(mes).padStart(2,'0')}-01`;
 }
 function monthEnd(mes, ano) {
-  return `${ano}-${String(mes).padStart(2,'0')}-31`;
+  const ultimoDia = new Date(ano, mes, 0).getDate();   // último dia real do mês (28/29/30/31)
+  return `${ano}-${String(mes).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`;
 }
 
 function getRoleLabel(r) {
-  return { admin:'Administrador', secretaria:'Secretaria', professor:'Professor', financeiro:'Financeiro' }[r] || r;
+  return { admin:'Administrador', secretaria:'Secretaria', professor:'Professor', financeiro:'Financeiro', aluno:'Aluno' }[r] || r;
 }
 
 function modalLabel(m) {
@@ -1902,12 +1916,16 @@ const PERMS = [
   { key:'trancamento',       label:'Trancar / reativar / alterar plano',desc:'Trancamento, cancelamento e mudança do número de parcelas' },
   { key:'crm_ver',           label:'Ver CRM',                           desc:'Acessa o funil de potenciais alunos' },
   { key:'crm_editar',        label:'Editar CRM',                        desc:'Cria e move leads, adiciona anotações, matricula' },
+  { key:'crm_funis',         label:'Configurar funis do CRM',           desc:'Cria, edita e exclui funis e etapas' },
+  { key:'membros_ver',       label:'Ver Área de Membros',               desc:'Acessa todos os painéis e materiais como equipe' },
+  { key:'membros_editar',    label:'Editar Área de Membros',            desc:'Cria painéis, envia arquivos e libera alunos' },
 ];
 const PERM_DEFAULTS = {
   admin:      PERMS.map(p=>p.key),
-  secretaria: ['alunos_ver','alunos_editar','pagamentos_ver','pagamentos_editar','trancamento','crm_ver','crm_editar'],
+  secretaria: ['alunos_ver','alunos_editar','pagamentos_ver','pagamentos_editar','trancamento','crm_ver','crm_editar','membros_ver','membros_editar'],
   financeiro: ['alunos_ver','pagamentos_ver','pagamentos_editar'],
-  professor:  [],
+  professor:  ['membros_ver'],
+  aluno:      [],
 };
 const ROLES = [
   { id:'admin',      label:'Administrador' },
@@ -2318,6 +2336,7 @@ async function openFichaAluno(id, tab) {
       <div class="ficha-actions">
         ${waBtn(a.telefone, `Olá ${a.nome.split(' ')[0]}, tudo bem? Aqui é da VMLI Idiomas.`)}
         ${can('alunos_editar') ? `<button class="btn btn-sm btn-secondary" onclick="openModalAluno('${a.id}')">✏️ Editar dados</button>` : ''}
+        ${can('membros_editar') && !a.profile_id && a.email ? `<button class="btn btn-sm btn-info" onclick="criarAcessoAluno('${a.id}')">🔑 Criar acesso</button>` : ''}
         ${acoesStatus}
       </div>
     </div>
@@ -2327,6 +2346,7 @@ async function openFichaAluno(id, tab) {
       <button class="tab-btn ${_D.fichaTab==='dados'?'active':''}" onclick="fichaTab('dados')">👤 Dados</button>
       <button class="tab-btn ${_D.fichaTab==='turmas'?'active':''}" onclick="fichaTab('turmas')">📚 Turmas</button>
       <button class="tab-btn ${_D.fichaTab==='historico'?'active':''}" onclick="fichaTab('historico')">📋 Histórico</button>
+      ${can('membros_ver') ? `<button class="tab-btn ${_D.fichaTab==='membros'?'active':''}" onclick="fichaTab('membros')">🎬 Área de Membros</button>` : ''}
     </div>
     <div id="ficha-body"></div>`);
   fichaTab(_D.fichaTab);
@@ -2335,9 +2355,15 @@ async function openFichaAluno(id, tab) {
 function fichaTab(tab) {
   _D.fichaTab = tab;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.textContent.includes(
-    {financeiro:'Financeiro', dados:'Dados', turmas:'Turmas', historico:'Histórico'}[tab])));
+    {financeiro:'Financeiro', dados:'Dados', turmas:'Turmas', historico:'Histórico', membros:'Área de Membros'}[tab])));
   const el = document.getElementById('ficha-body');
   if (!el) return;
+  if (tab === 'membros') {
+    el.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
+    fichaMembrosHTML().then(h => { if (_D.fichaTab==='membros') el.innerHTML = h; })
+      .catch(err => { el.innerHTML = `<div class="alert alert-warning">Erro: ${err.message}<br><span class="text-muted">Você já rodou o SQL 03_area_membros.sql?</span></div>`; });
+    return;
+  }
   el.innerHTML = { financeiro: fichaFinanceiroHTML, dados: fichaDadosHTML, turmas: fichaTurmasHTML, historico: fichaHistoricoHTML }[tab]();
 }
 
@@ -2862,63 +2888,94 @@ function filterCob(q) {
 }
 
 // ============================================================
-// 25. CRM — funil de potenciais alunos (Kanban)
+// 25. CRM — funis personalizados (Kanban)
 // ============================================================
-const ETAPAS = [
-  { id:'novo',                  label:'Novo contato',          icon:'✨' },
-  { id:'contato',               label:'Em conversa',           icon:'💬' },
-  { id:'experimental_agendada', label:'Experimental agendada', icon:'📅' },
-  { id:'experimental_feita',    label:'Experimental feita',    icon:'🔬' },
-  { id:'proposta',              label:'Proposta enviada',      icon:'📄' },
-  { id:'matriculado',           label:'Matriculado',           icon:'🎓', final:true },
-  { id:'perdido',               label:'Perdido',               icon:'❌', final:true },
-];
-const etapaInfo = id => ETAPAS.find(e=>e.id===id) || { label:id, icon:'•' };
+async function loadFunis() {
+  const { data, error } = await db.from('funis').select('*, funil_etapas(*)').order('ordem').order('nome');
+  if (error) throw error;
+  _D.funis = {}; _D.etapas = {};
+  (data||[]).forEach(f => {
+    f.funil_etapas = (f.funil_etapas||[]).sort((a,b)=>a.ordem-b.ordem || a.nome.localeCompare(b.nome));
+    _D.funis[f.id] = f;
+    f.funil_etapas.forEach(e => { e.funil = f; _D.etapas[e.id] = e; });
+  });
+  _D.funisList = (data||[]);
+  return _D.funisList;
+}
+const etapaDe = id => _D.etapas?.[id] || null;
+function etapaBadge(e) {
+  if (!e) return '<span class="badge badge-gray">Sem etapa</span>';
+  return `<span class="badge" style="background:${e.cor}26;color:${e.cor};border-color:${e.cor}55">${esc(e.nome)}</span>`;
+}
 
 async function renderCRM() {
   if (!can('crm_ver')) return semPermissao();
+  let funis;
+  try { funis = await loadFunis(); }
+  catch (err) { setContent(`<div class="alert alert-warning">Erro: ${err.message}<br><span class="text-muted">Você já rodou o SQL <strong>02_funis_crm.sql</strong> no Supabase?</span></div>`); return; }
+
+  const ativos = funis.filter(f => f.ativo);
+  if (!ativos.length) {
+    setContent(`<div class="page-header"><h2>CRM 🎯</h2></div>
+      <div class="card"><div class="card-body"><p class="empty-state">Nenhum funil criado ainda.
+      ${can('crm_funis') ? '<br><button class="btn btn-primary" style="margin-top:12px" onclick="renderFunis()">⚙️ Criar meu primeiro funil</button>' : 'Peça ao administrador para criar um funil.'}</p></div></div>`);
+    return;
+  }
+  if (!_D.crmFunil || !_D.funis[_D.crmFunil] || !_D.funis[_D.crmFunil].ativo) _D.crmFunil = ativos[0].id;
+  const funil = _D.funis[_D.crmFunil];
+
   const [{ data: leads, error }, { data: users }] = await Promise.all([
-    db.from('leads').select('*, profiles!leads_responsavel_id_fkey(name)').order('updated_at',{ascending:false}),
+    db.from('leads').select('*, profiles!leads_responsavel_id_fkey(name)').eq('funil_id', funil.id).order('updated_at',{ascending:false}),
     db.from('profiles').select('id,name,role').eq('ativo', true).order('name'),
   ]);
-  if (error) { setContent(`<div class="alert alert-warning">Erro: ${error.message}<br><span class="text-muted">Você já rodou o SQL das tabelas novas no Supabase?</span></div>`); return; }
+  if (error) { setContent(`<div class="alert alert-warning">Erro: ${error.message}</div>`); return; }
 
   _D.leads = {}; (leads||[]).forEach(l => { _D.leads[l.id] = l; });
   _D.users = users||[];
 
-  const { mes, ano } = getCurrentMonthYear();
-  const ini = monthStart(mes, ano);
-  const ativos   = (leads||[]).filter(l => !etapaInfo(l.etapa).final);
+  const { mes, ano } = getCurrentMonthYear(); const ini = monthStart(mes, ano);
+  const tipoDe = l => etapaDe(l.etapa_id)?.tipo || 'aberta';
+  const abertos = (leads||[]).filter(l => tipoDe(l)==='aberta');
   const novosMes = (leads||[]).filter(l => l.created_at >= ini).length;
-  const matrMes  = (leads||[]).filter(l => l.etapa==='matriculado' && l.updated_at >= ini).length;
-  const matr = (leads||[]).filter(l=>l.etapa==='matriculado').length, perd = (leads||[]).filter(l=>l.etapa==='perdido').length;
-  const taxa = (matr+perd) ? Math.round(matr/(matr+perd)*100) : 0;
+  const ganhosMes = (leads||[]).filter(l => tipoDe(l)==='ganho' && l.updated_at >= ini).length;
+  const g = (leads||[]).filter(l=>tipoDe(l)==='ganho').length, p = (leads||[]).filter(l=>tipoDe(l)==='perdido').length;
+  const taxa = (g+p) ? Math.round(g/(g+p)*100) : 0;
   const podeEd = can('crm_editar');
   _D.crmShowFinal = _D.crmShowFinal ?? false;
 
+  const cols = funil.funil_etapas.filter(e => e.tipo==='aberta' || _D.crmShowFinal);
+
   setContent(`
     <div class="page-header">
-      <h2>CRM — Funil de alunos 🎯</h2>
-      ${podeEd ? '<button class="btn btn-primary" onclick="openModalLead(null)">+ Novo lead</button>' : ''}
+      <h2>CRM 🎯</h2>
+      <div class="action-btns">
+        ${can('crm_funis') ? '<button class="btn btn-secondary" onclick="renderFunis()">⚙️ Configurar funis</button>' : ''}
+        ${podeEd ? '<button class="btn btn-primary" onclick="openModalLead(null)">+ Novo lead</button>' : ''}
+      </div>
     </div>
+    ${ativos.length > 1 ? `<div class="chips funil-tabs">
+      ${ativos.map(f => `<button class="chip ${f.id===funil.id?'active':''}" onclick="_D.crmFunil='${f.id}';renderCRM()">${esc(f.nome)}</button>`).join('')}
+    </div>` : ''}
+    ${funil.descricao ? `<p class="text-muted" style="margin:-4px 0 12px">${esc(funil.descricao)}</p>` : ''}
     <div class="stats-grid" style="margin-bottom:16px">
-      ${statCard('🎯', ativos.length, 'Leads no funil')}
+      ${statCard('🎯', abertos.length, 'Em andamento')}
       ${statCard('✨', novosMes, `Novos em ${MONTHS[mes]}`)}
-      ${statCard('🎓', matrMes, `Matriculados em ${MONTHS[mes]}`)}
+      ${statCard('🏆', ganhosMes, `Ganhos em ${MONTHS[mes]}`)}
       ${statCard('📈', taxa+'%', 'Taxa de conversão')}
     </div>
     <div class="toolbar" style="margin-bottom:12px">
       <input type="text" class="search-input" placeholder="🔍 Buscar lead…" oninput="filterLeads(this.value)">
       <label class="chip ${_D.crmShowFinal?'active':''}" style="cursor:pointer">
-        <input type="checkbox" ${_D.crmShowFinal?'checked':''} onchange="_D.crmShowFinal=this.checked;renderCRM()" style="display:none"> Mostrar matriculados / perdidos
+        <input type="checkbox" ${_D.crmShowFinal?'checked':''} onchange="_D.crmShowFinal=this.checked;renderCRM()" style="display:none"> Mostrar etapas finais (ganho / perdido)
       </label>
     </div>
+    ${!funil.funil_etapas.length ? `<div class="alert alert-warning">Este funil ainda não tem etapas. ${can('crm_funis')?'<button class="btn btn-sm btn-warning" onclick="renderFunis()">Configurar</button>':''}</div>` : ''}
     <div class="kanban" id="kanban">
-      ${ETAPAS.filter(e => !e.final || _D.crmShowFinal).map(e => {
-        const ls = (leads||[]).filter(l => l.etapa===e.id);
+      ${cols.map(e => {
+        const ls = (leads||[]).filter(l => l.etapa_id===e.id);
         return `
-        <div class="kanban-col" data-etapa="${e.id}" ${podeEd?'ondragover="event.preventDefault();this.classList.add(\'over\')" ondragleave="this.classList.remove(\'over\')" ondrop="dropLead(event)"':''}>
-          <div class="kanban-head"><span>${e.icon} ${e.label}</span><span class="kanban-count">${ls.length}</span></div>
+        <div class="kanban-col" data-etapa="${e.id}" style="border-top:3px solid ${e.cor}" ${podeEd?'ondragover="event.preventDefault();this.classList.add(\'over\')" ondragleave="this.classList.remove(\'over\')" ondrop="dropLead(event)"':''}>
+          <div class="kanban-head"><span>${e.tipo==='ganho'?'🏆 ':e.tipo==='perdido'?'❌ ':''}${esc(e.nome)}</span><span class="kanban-count">${ls.length}</span></div>
           <div class="kanban-body">
             ${ls.map(l => leadCard(l, podeEd)).join('') || '<div class="kanban-empty">—</div>'}
           </div>
@@ -2935,6 +2992,7 @@ function leadCard(l, podeEd) {
       <div class="kc-tags">
         ${l.idioma ? `<span class="badge badge-info">${esc(l.idioma)}</span>` : ''}
         ${l.origem ? `<span class="badge badge-gray">${esc(l.origem)}</span>` : ''}
+        ${l.aluno_id ? '<span class="badge badge-success">Aluno</span>' : ''}
       </div>
       <div class="kc-foot">
         <span class="text-muted">${dias===0?'hoje':dias+'d'} ${l.profiles?.name ? '• '+esc(l.profiles.name.split(' ')[0]) : ''}</span>
@@ -2949,26 +3007,31 @@ function filterLeads(q) {
 async function dropLead(ev) {
   ev.preventDefault();
   const col = ev.currentTarget; col.classList.remove('over');
-  const id = ev.dataTransfer.getData('text'); const etapa = col.dataset.etapa;
-  if (id && etapa) moverLead(id, etapa);
+  const id = ev.dataTransfer.getData('text'); const etapaId = col.dataset.etapa;
+  if (id && etapaId) moverLead(id, etapaId);
 }
 
-async function moverLead(id, etapa, motivo) {
-  const l = _D.leads?.[id]; if (!l || l.etapa===etapa) return;
-  if (etapa==='perdido' && motivo===undefined) { openModalPerdido(id); return; }
-  if (etapa==='matriculado' && !l.aluno_id) { openModalMatricular(id); return; }
-  const row = { etapa }; if (motivo) row.motivo_perda = motivo;
+// Move um lead para outra etapa (mesmo funil ou outro). Etapa "ganho" abre a matrícula; "perdido" pede motivo.
+async function moverLead(id, etapaId, motivo) {
+  const l = _D.leads?.[id]; const e = etapaDe(etapaId);
+  if (!l || !e || l.etapa_id===etapaId) return;
+  if (e.tipo==='perdido' && motivo===undefined) { openModalPerdido(id, etapaId); return; }
+  if (e.tipo==='ganho' && !l.aluno_id) { openModalMatricular(id, etapaId); return; }
+  const row = { etapa_id: etapaId, funil_id: e.funil_id }; if (motivo) row.motivo_perda = motivo;
   const { error } = await db.from('leads').update(row).eq('id', id);
   if (error) { showToast('Erro: '+error.message,'error'); return; }
-  await db.from('lead_notas').insert({ lead_id:id, user_id:user.id, texto:`Movido para "${etapaInfo(etapa).label}"${motivo?' — '+motivo:''}` });
-  showToast(`${l.nome} → ${etapaInfo(etapa).label}`,'success');
+  await db.from('lead_notas').insert({ lead_id:id, user_id:user.id, texto:`Movido para "${e.nome}"${e.funil_id!==l.funil_id?' (funil '+e.funil.nome+')':''}${motivo?' — '+motivo:''}` });
+  showToast(`${l.nome} → ${e.nome}`,'success');
   closeModal(); renderCRM();
 }
 
-function openModalPerdido(id) {
+function openModalPerdido(id, etapaId) {
+  const l = _D.leads?.[id];
+  const alvo = etapaId || (_D.funis[l.funil_id]?.funil_etapas.find(e=>e.tipo==='perdido')?.id);
+  if (!alvo) { showToast('Este funil não tem uma etapa do tipo "perdido". Crie uma em Configurar funis.','error'); return; }
   openModal(`
     <div class="modal-header"><h3>❌ Marcar como perdido</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
-    <form onsubmit="event.preventDefault();moverLead('${id}','perdido',this.motivo.value.trim())" style="padding:20px">
+    <form onsubmit="event.preventDefault();moverLead('${id}','${alvo}',this.motivo.value.trim())" style="padding:20px">
       <div class="form-group"><label>Motivo</label>
         <select name="motivo"><option value="">Selecione…</option>
           ${['Preço','Horário','Sem retorno','Escolheu outra escola','Desistiu','Outro'].map(m=>`<option>${m}</option>`).join('')}
@@ -2980,9 +3043,19 @@ function openModalPerdido(id) {
     </form>`);
 }
 
+function etapasOptionsHTML(funilId, selected) {
+  const f = _D.funis?.[funilId];
+  return (f?.funil_etapas||[]).map(e => `<option value="${e.id}" ${e.id===selected?'selected':''}>${esc(e.nome)}${e.tipo!=='aberta'?' ('+e.tipo+')':''}</option>`).join('');
+}
+function trocaFunilNoForm(sel) {
+  const et = sel.form.querySelector('[name=etapa_id]'); if (et) et.innerHTML = etapasOptionsHTML(sel.value);
+}
+
 function openModalLead(id) {
   if (!can('crm_editar')) { showToast('Sem permissão para editar o CRM','error'); return; }
   const l = id ? _D.leads?.[id] : null;
+  const funilId = l?.funil_id || _D.crmFunil;
+  const etapaId = l?.etapa_id || _D.funis[funilId]?.funil_etapas.find(e=>e.tipo==='aberta')?.id;
   openModal(`
     <div class="modal-header"><h3>${l?'Editar lead':'Novo lead'}</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
     <form onsubmit="saveLead(event)" style="padding:20px">
@@ -2996,9 +3069,11 @@ function openModalLead(id) {
         <div class="form-group"><label>Origem</label><select name="origem">${selectOptions(ORIGENS, l?.origem)}</select></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>Etapa</label><select name="etapa">${ETAPAS.filter(e=>!e.final).map(e=>`<option value="${e.id}" ${(l?.etapa||'novo')===e.id?'selected':''}>${e.icon} ${e.label}</option>`).join('')}</select></div>
-        <div class="form-group"><label>Responsável</label><select name="responsavel_id">${selectOptions((_D.users||[]).map(u=>({id:u.id,label:u.name})), l?.responsavel_id || (l?null:user.id))}</select></div>
+        <div class="form-group"><label>Funil</label>
+          <select name="funil_id" onchange="trocaFunilNoForm(this)">${(_D.funisList||[]).filter(f=>f.ativo||f.id===funilId).map(f=>`<option value="${f.id}" ${f.id===funilId?'selected':''}>${esc(f.nome)}</option>`).join('')}</select></div>
+        <div class="form-group"><label>Etapa</label><select name="etapa_id">${etapasOptionsHTML(funilId, etapaId)}</select></div>
       </div>
+      <div class="form-group"><label>Responsável</label><select name="responsavel_id">${selectOptions((_D.users||[]).map(u=>({id:u.id,label:u.name})), l?.responsavel_id || (l?null:user.id))}</select></div>
       <div class="form-group"><label>Observações</label><textarea name="observacoes" rows="3">${esc(l?.observacoes)}</textarea></div>
       <input type="hidden" name="id" value="${l?.id||''}">
       <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
@@ -3012,37 +3087,46 @@ async function saveLead(e) {
   const fd = new FormData(e.target); const id = fd.get('id');
   const g = k => (fd.get(k)||'').toString().trim() || null;
   const row = { nome:g('nome'), telefone:g('telefone'), email:g('email'), idioma:g('idioma'), origem:g('origem'),
-                etapa:g('etapa')||'novo', responsavel_id:g('responsavel_id'), observacoes:g('observacoes') };
+                funil_id:g('funil_id'), etapa_id:g('etapa_id'), responsavel_id:g('responsavel_id'), observacoes:g('observacoes') };
+  if (!row.etapa_id) { showToast('Escolha uma etapa (o funil precisa ter etapas)','error'); return; }
   const btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
   const { error } = id ? await db.from('leads').update(row).eq('id', id)
                        : await db.from('leads').insert({ ...row, created_by:user.id });
   if (error) { showToast('Erro: '+error.message,'error'); btn.disabled=false; return; }
+  _D.crmFunil = row.funil_id;
   showToast(id?'Lead atualizado!':'Lead criado! ✨','success'); closeModal(); renderCRM();
 }
 
 async function openLeadDetail(id) {
   const l = _D.leads?.[id]; if (!l) return;
   const { data: notas } = await db.from('lead_notas').select('*, profiles(name)').eq('lead_id', id).order('created_at',{ascending:false});
-  const e = etapaInfo(l.etapa); const podeEd = can('crm_editar');
+  const e = etapaDe(l.etapa_id); const tipo = e?.tipo||'aberta'; const podeEd = can('crm_editar');
+  const f = _D.funis[l.funil_id];
+  const temGanho = f?.funil_etapas.some(x=>x.tipo==='ganho'), temPerd = f?.funil_etapas.some(x=>x.tipo==='perdido');
   const info = (lb, v) => `<div class="info-item"><span class="info-label">${lb}</span><span class="info-value">${v||'—'}</span></div>`;
   openModal(`
     <div class="modal-header">
-      <h3>${esc(l.nome)} <span class="badge badge-info">${e.icon} ${e.label}</span></h3>
+      <h3>${esc(l.nome)} ${etapaBadge(e)}</h3>
       <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
     <div style="padding:20px">
       <div class="ficha-actions" style="margin-bottom:14px">
         ${waBtn(l.telefone, `Olá ${l.nome.split(' ')[0]}, tudo bem? Aqui é da VMLI Idiomas 😊`)}
         ${podeEd ? `<button class="btn btn-sm btn-secondary" onclick="openModalLead('${l.id}')">✏️ Editar</button>` : ''}
-        ${podeEd && !e.final ? `<button class="btn btn-sm btn-info" onclick="openModalAgendarExp('${l.id}')">📅 Agendar experimental</button>` : ''}
-        ${podeEd && l.etapa!=='matriculado' ? `<button class="btn btn-sm btn-success" onclick="openModalMatricular('${l.id}')">🎓 Matricular</button>` : ''}
+        ${podeEd && tipo==='aberta' ? `<button class="btn btn-sm btn-info" onclick="openModalAgendarExp('${l.id}')">📅 Agendar experimental</button>` : ''}
+        ${podeEd && !l.aluno_id ? `<button class="btn btn-sm btn-success" onclick="openModalMatricular('${l.id}')">🎓 Matricular</button>` : ''}
         ${l.aluno_id ? `<button class="btn btn-sm btn-primary" onclick="closeModal();openFichaAluno('${l.aluno_id}')">Ver ficha do aluno</button>` : ''}
-        ${podeEd && !e.final ? `<button class="btn btn-sm btn-danger" onclick="openModalPerdido('${l.id}')">❌ Perdido</button>` : ''}
+        ${podeEd && tipo==='aberta' && temPerd ? `<button class="btn btn-sm btn-danger" onclick="openModalPerdido('${l.id}')">❌ Perdido</button>` : ''}
+        ${podeEd ? `<button class="btn btn-sm btn-danger" onclick="excluirLead('${l.id}')">🗑</button>` : ''}
       </div>
-      ${podeEd ? `<div class="form-group"><label>Mover para</label>
-        <select onchange="if(this.value)moverLead('${l.id}',this.value)">
-          ${ETAPAS.map(x=>`<option value="${x.id}" ${x.id===l.etapa?'selected':''}>${x.icon} ${x.label}</option>`).join('')}
-        </select></div>` : ''}
+      ${podeEd ? `<div class="form-row">
+        <div class="form-group"><label>Mover para (${esc(f?.nome||'')})</label>
+          <select onchange="if(this.value)moverLead('${l.id}',this.value)">${etapasOptionsHTML(l.funil_id, l.etapa_id)}</select></div>
+        ${(_D.funisList||[]).filter(x=>x.ativo && x.id!==l.funil_id).length ? `<div class="form-group"><label>Enviar para outro funil</label>
+          <select onchange="if(this.value)moverLead('${l.id}',this.value)"><option value="">Selecione…</option>
+            ${(_D.funisList||[]).filter(x=>x.ativo && x.id!==l.funil_id).map(x=>`<optgroup label="${esc(x.nome)}">${x.funil_etapas.map(et=>`<option value="${et.id}">${esc(et.nome)}</option>`).join('')}</optgroup>`).join('')}
+          </select></div>` : ''}
+      </div>` : ''}
       <div class="info-grid" style="margin-bottom:16px">
         ${info('Telefone', esc(l.telefone))}${info('Email', esc(l.email))}
         ${info('Idioma', esc(l.idioma))}${info('Origem', esc(l.origem))}
@@ -3074,6 +3158,13 @@ async function saveLeadNota(e, leadId) {
   if (l) _D.leads[leadId] = l;
   openLeadDetail(leadId);
 }
+async function excluirLead(id) {
+  const l = _D.leads?.[id]; if (!l) return;
+  if (!confirm(`Excluir o lead "${l.nome}"? As anotações também serão apagadas.`)) return;
+  const { error } = await db.from('leads').delete().eq('id', id);
+  if (error) { showToast('Erro: '+error.message,'error'); return; }
+  showToast('Lead excluído','success'); closeModal(); renderCRM();
+}
 
 async function openModalAgendarExp(leadId) {
   const l = _D.leads?.[leadId]; if (!l) return;
@@ -3081,6 +3172,8 @@ async function openModalAgendarExp(leadId) {
     db.from('turmas').select('id,codigo,nome,horario,modalidade').eq('status','active').order('codigo'),
     db.from('profiles').select('id,name').eq('role','professor').eq('ativo',true).order('name'),
   ]);
+  const f = _D.funis[l.funil_id];
+  const sugestao = f?.funil_etapas.find(e => /experimental/i.test(e.nome) && /agend/i.test(e.nome));
   openModal(`
     <div class="modal-header"><h3>📅 Agendar aula experimental</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
     <form onsubmit="saveAgendarExp(event)" style="padding:20px">
@@ -3096,7 +3189,11 @@ async function openModalAgendarExp(leadId) {
         <div class="form-group"><label>Professor *</label>
           <select name="professor_id" required>${selectOptions((profs||[]).map(p=>({id:p.id,label:p.name})))}</select></div>
       </div>
-      <div class="form-group"><label>Observações</label><input type="text" name="notas" value="${esc(l.observacoes)}"></div>
+      <div class="form-row">
+        <div class="form-group"><label>Observações</label><input type="text" name="notas" value="${esc(l.observacoes)}"></div>
+        <div class="form-group"><label>Mover o lead para</label>
+          <select name="etapa_id"><option value="">Manter na etapa atual</option>${etapasOptionsHTML(l.funil_id, sugestao?.id)}</select></div>
+      </div>
       <input type="hidden" name="lead_id" value="${leadId}">
       <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
         <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
@@ -3115,16 +3212,20 @@ async function saveAgendarExp(e) {
       data_aula: fd.get('data_aula'), notas: fd.get('notas').trim()||null, status:'pendente',
     }).select().single();
     if (error) throw error;
-    await db.from('leads').update({ etapa:'experimental_agendada', experimental_id: exp.id }).eq('id', l.id);
+    const upd = { experimental_id: exp.id };
+    if (fd.get('etapa_id')) upd.etapa_id = fd.get('etapa_id');
+    await db.from('leads').update(upd).eq('id', l.id);
     await db.from('lead_notas').insert({ lead_id:l.id, user_id:user.id, texto:`Experimental agendada para ${formatDate(fd.get('data_aula'))}` });
     showToast('Experimental agendada! 📅','success'); closeModal(); renderCRM();
   } catch (err) { showToast('Erro: '+err.message,'error'); btn.disabled=false; }
 }
 
-async function openModalMatricular(leadId) {
+async function openModalMatricular(leadId, etapaId) {
   if (!can('crm_editar')) return;
   const l = _D.leads?.[leadId]; if (!l) return;
   const { data: turmas } = await db.from('turmas').select('id,codigo,nome,horario').eq('status','active').order('codigo');
+  const f = _D.funis[l.funil_id];
+  const ganho = etapaId || f?.funil_etapas.find(e=>e.tipo==='ganho')?.id || '';
   openModal(`
     <div class="modal-header"><h3>🎓 Matricular ${esc(l.nome)}</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
     <form onsubmit="saveMatricular(event)" style="padding:20px">
@@ -3139,7 +3240,7 @@ async function openModalMatricular(leadId) {
           <select name="turma_id">${selectOptions((turmas||[]).map(t=>({id:t.id,label:`${t.codigo} ${t.nome?'— '+t.nome:''}`})), '', 'Definir depois')}</select></div>
       </div>
       ${can('pagamentos_editar') ? `<details class="plano-box" open><summary>💰 Plano de pagamento</summary>${planoFields('p_')}</details>` : ''}
-      <input type="hidden" name="lead_id" value="${leadId}">
+      <input type="hidden" name="lead_id" value="${leadId}"><input type="hidden" name="etapa_id" value="${ganho}">
       <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
         <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
         <button type="submit" class="btn btn-success">✓ Confirmar matrícula</button>
@@ -3161,7 +3262,9 @@ async function saveMatricular(e) {
     if (turmaId) { const { error: e2 } = await db.from('turma_alunos').insert({ turma_id:turmaId, aluno_id:aluno.id }); if (e2) throw e2; }
     const plano = can('pagamentos_editar') ? lerPlano(fd,'p_') : null;
     if (plano) await aplicarPlano(aluno.id, plano, 'novo');
-    await db.from('leads').update({ etapa:'matriculado', aluno_id:aluno.id }).eq('id', l.id);
+    const upd = { aluno_id: aluno.id, etapa: 'matriculado' };
+    const et = g('etapa_id'); if (et) { upd.etapa_id = et; upd.funil_id = etapaDe(et)?.funil_id || l.funil_id; }
+    await db.from('leads').update(upd).eq('id', l.id);
     if (l.experimental_id) await db.from('experimentais').update({ status:'convertido', aluno_id:aluno.id }).eq('id', l.experimental_id);
     await db.from('lead_notas').insert({ lead_id:l.id, user_id:user.id, texto:'Matriculado 🎓' });
     await logHistorico(aluno.id, 'nota', `Aluno criado a partir do CRM (origem: ${l.origem||'—'})`);
@@ -3169,12 +3272,221 @@ async function saveMatricular(e) {
   } catch (err) { showToast('Erro: '+err.message,'error'); btn.disabled=false; btn.textContent='✓ Confirmar matrícula'; }
 }
 
+// ---- Configuração de funis e etapas ----
+async function renderFunis() {
+  if (!can('crm_funis')) return semPermissao('Você não tem permissão para configurar funis.');
+  activeTab = 'crm';
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.tab==='crm'));
+  document.getElementById('page-title').textContent = 'Configurar funis';
+  setContent(`<div class="loading"><div class="spinner"></div></div>`);
+  let funis;
+  try { funis = await loadFunis(); } catch (err) { setContent(`<div class="alert alert-warning">Erro: ${err.message}</div>`); return; }
+  const { data: cont } = await db.from('leads').select('etapa_id');
+  const porEtapa = {}; (cont||[]).forEach(l => { porEtapa[l.etapa_id] = (porEtapa[l.etapa_id]||0)+1; });
+  _D.leadsPorEtapa = porEtapa;
+
+  setContent(`
+    <button class="btn-link btn-back" onclick="showTab('crm')">← Voltar para o CRM</button>
+    <div class="page-header">
+      <h2>⚙️ Funis do CRM</h2>
+      <button class="btn btn-primary" onclick="openModalFunil(null)">+ Novo funil</button>
+    </div>
+    <div class="alert alert-info">
+      Cada funil tem suas próprias etapas. Use ▲▼ para ordenar. Tipo <strong>Ganho</strong> abre a matrícula ao mover o lead;
+      <strong>Perdido</strong> pede o motivo; <strong>Em andamento</strong> é uma etapa normal.
+    </div>
+    ${funis.length ? funis.map(f => funilCardHTML(f, porEtapa)).join('') : '<div class="card"><div class="card-body"><p class="empty-state">Nenhum funil. Clique em "+ Novo funil".</p></div></div>'}`);
+}
+
+function funilCardHTML(f, porEtapa) {
+  const total = f.funil_etapas.reduce((s,e)=>s+(porEtapa[e.id]||0),0);
+  return `
+    <div class="card funil-card ${f.ativo?'':'inativo'}">
+      <div class="card-header">
+        <div>
+          <h3>${esc(f.nome)} ${f.ativo?'':'<span class="badge badge-gray">Inativo</span>'} <span class="text-muted" style="font-weight:400;font-size:0.85rem">• ${total} lead(s)</span></h3>
+          ${f.descricao ? `<div class="text-muted" style="font-size:0.85rem">${esc(f.descricao)}</div>` : ''}
+        </div>
+        <div class="action-btns">
+          <button class="btn btn-sm btn-secondary" onclick="openModalFunil('${f.id}')">✏️ Editar</button>
+          <button class="btn btn-sm btn-secondary" onclick="openModalEtapa('${f.id}',null)">+ Etapa</button>
+          <button class="btn btn-sm ${f.ativo?'btn-danger':'btn-success'}" onclick="toggleFunil('${f.id}',${f.ativo})">${f.ativo?'Desativar':'Ativar'}</button>
+          ${!total ? `<button class="btn btn-sm btn-danger" onclick="excluirFunil('${f.id}')">🗑</button>` : ''}
+        </div>
+      </div>
+      <div class="card-body">
+        ${f.funil_etapas.length ? f.funil_etapas.map((e,i) => `
+          <div class="etapa-row">
+            <span class="etapa-cor" style="background:${e.cor}"></span>
+            <span class="etapa-nome">${esc(e.nome)}</span>
+            <span class="badge ${e.tipo==='ganho'?'badge-success':e.tipo==='perdido'?'badge-danger':'badge-gray'}">${e.tipo==='ganho'?'Ganho':e.tipo==='perdido'?'Perdido':'Em andamento'}</span>
+            <span class="text-muted">${porEtapa[e.id]||0} lead(s)</span>
+            <div class="action-btns">
+              <button class="btn btn-sm btn-secondary" ${i===0?'disabled':''} onclick="moverEtapa('${f.id}','${e.id}',-1)">▲</button>
+              <button class="btn btn-sm btn-secondary" ${i===f.funil_etapas.length-1?'disabled':''} onclick="moverEtapa('${f.id}','${e.id}',1)">▼</button>
+              <button class="btn btn-sm btn-secondary" onclick="openModalEtapa('${f.id}','${e.id}')">Editar</button>
+              <button class="btn btn-sm btn-danger" onclick="excluirEtapa('${e.id}')">🗑</button>
+            </div>
+          </div>`).join('')
+        : '<p class="empty-state">Sem etapas ainda. Clique em "+ Etapa".</p>'}
+      </div>
+    </div>`;
+}
+
+function openModalFunil(id) {
+  const f = id ? _D.funis?.[id] : null;
+  openModal(`
+    <div class="modal-header"><h3>${f?'Editar funil':'Novo funil'}</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <form onsubmit="saveFunil(event)" style="padding:20px">
+      <div class="form-group"><label>Nome *</label><input type="text" name="nome" value="${esc(f?.nome)}" placeholder="ex: Captação de alunos, Rematrícula, Parcerias com empresas…" required></div>
+      <div class="form-group"><label>Descrição</label><input type="text" name="descricao" value="${esc(f?.descricao)}"></div>
+      ${!f ? `<div class="form-group"><label>Começar com</label>
+        <select name="modelo">
+          <option value="vazio">Funil vazio (eu crio as etapas)</option>
+          <option value="basico" selected>Etapas básicas: Novo → Em conversa → Proposta → Ganho / Perdido</option>
+          <option value="escola">Modelo escola: Novo → Em conversa → Experimental agendada → Experimental feita → Proposta → Matriculado / Perdido</option>
+        </select></div>` : ''}
+      <input type="hidden" name="id" value="${f?.id||''}">
+      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${f?'Salvar':'Criar funil'}</button>
+      </div>
+    </form>`);
+}
+async function saveFunil(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target); const id = fd.get('id');
+  const row = { nome: fd.get('nome').trim(), descricao: fd.get('descricao').trim()||null };
+  const btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
+  try {
+    if (id) {
+      const { error } = await db.from('funis').update(row).eq('id', id); if (error) throw error;
+    } else {
+      row.ordem = (_D.funisList||[]).length;
+      const { data: f, error } = await db.from('funis').insert(row).select().single(); if (error) throw error;
+      const modelos = {
+        basico: [['Novo','#60A5FA','aberta'],['Em conversa','#A78BFA','aberta'],['Proposta','#FB923C','aberta'],['Ganho','#2DD4BF','ganho'],['Perdido','#FB4763','perdido']],
+        escola: [['Novo contato','#60A5FA','aberta'],['Em conversa','#A78BFA','aberta'],['Experimental agendada','#F59E0B','aberta'],['Experimental feita','#F5C200','aberta'],['Proposta enviada','#FB923C','aberta'],['Matriculado','#2DD4BF','ganho'],['Perdido','#FB4763','perdido']],
+      }[fd.get('modelo')];
+      if (modelos) {
+        const { error: e2 } = await db.from('funil_etapas').insert(modelos.map(([nome,cor,tipo],i)=>({ funil_id:f.id, nome, cor, tipo, ordem:i })));
+        if (e2) throw e2;
+      }
+      _D.crmFunil = f.id;
+    }
+    showToast(id?'Funil atualizado!':'Funil criado! 🎯','success'); closeModal(); renderFunis();
+  } catch (err) { showToast('Erro: '+err.message,'error'); btn.disabled=false; }
+}
+async function toggleFunil(id, ativo) {
+  const { error } = await db.from('funis').update({ ativo: !ativo }).eq('id', id);
+  if (error) { showToast('Erro: '+error.message,'error'); return; }
+  renderFunis();
+}
+async function excluirFunil(id) {
+  const f = _D.funis?.[id];
+  if (!confirm(`Excluir o funil "${f?.nome}" e todas as suas etapas?`)) return;
+  const { error } = await db.from('funis').delete().eq('id', id);
+  if (error) { showToast('Erro: '+error.message,'error'); return; }
+  showToast('Funil excluído','success'); renderFunis();
+}
+
+function openModalEtapa(funilId, etapaId) {
+  const e = etapaId ? _D.etapas?.[etapaId] : null;
+  const cores = ['#60A5FA','#A78BFA','#F59E0B','#F5C200','#FB923C','#2DD4BF','#FB4763','#34D399','#F472B6','#94A3B8'];
+  openModal(`
+    <div class="modal-header"><h3>${e?'Editar etapa':'Nova etapa'}</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <form onsubmit="saveEtapa(event)" style="padding:20px">
+      <div class="form-group"><label>Nome *</label><input type="text" name="nome" value="${esc(e?.nome)}" placeholder="ex: Aguardando retorno" required></div>
+      <div class="form-row">
+        <div class="form-group"><label>Tipo</label>
+          <select name="tipo">
+            <option value="aberta"  ${(e?.tipo||'aberta')==='aberta'?'selected':''}>Em andamento</option>
+            <option value="ganho"   ${e?.tipo==='ganho'?'selected':''}>Ganho (abre matrícula)</option>
+            <option value="perdido" ${e?.tipo==='perdido'?'selected':''}>Perdido (pede motivo)</option>
+          </select></div>
+        <div class="form-group"><label>Cor</label>
+          <div class="cores">${cores.map(c=>`<label class="cor-opt"><input type="radio" name="cor" value="${c}" ${(e?.cor||'#60A5FA')===c?'checked':''}><span style="background:${c}"></span></label>`).join('')}</div>
+        </div>
+      </div>
+      <input type="hidden" name="id" value="${e?.id||''}"><input type="hidden" name="funil_id" value="${funilId}">
+      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${e?'Salvar':'Adicionar'}</button>
+      </div>
+    </form>`);
+}
+async function saveEtapa(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target); const id = fd.get('id'); const funilId = fd.get('funil_id');
+  const row = { nome: fd.get('nome').trim(), tipo: fd.get('tipo'), cor: fd.get('cor')||'#60A5FA' };
+  const btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
+  let res;
+  if (id) res = await db.from('funil_etapas').update(row).eq('id', id);
+  else {
+    const f = _D.funis?.[funilId]; const ordem = f ? f.funil_etapas.length : 0;
+    // Nova etapa "em andamento" entra antes das finais (ganho/perdido) para manter a ordem natural
+    const finais = f ? f.funil_etapas.filter(x=>x.tipo!=='aberta') : [];
+    let pos = ordem;
+    if (row.tipo==='aberta' && finais.length) {
+      pos = Math.min(...finais.map(x=>x.ordem));
+      await Promise.all(finais.map(x => db.from('funil_etapas').update({ ordem: x.ordem+1 }).eq('id', x.id)));
+    }
+    res = await db.from('funil_etapas').insert({ ...row, funil_id: funilId, ordem: pos });
+  }
+  if (res.error) { showToast('Erro: '+res.error.message,'error'); btn.disabled=false; return; }
+  showToast(id?'Etapa atualizada!':'Etapa adicionada!','success'); closeModal(); renderFunis();
+}
+async function moverEtapa(funilId, etapaId, dir) {
+  const f = _D.funis?.[funilId]; if (!f) return;
+  const list = f.funil_etapas; const i = list.findIndex(x=>x.id===etapaId); const j = i+dir;
+  if (i<0 || j<0 || j>=list.length) return;
+  const a = list[i], b = list[j];
+  await Promise.all([
+    db.from('funil_etapas').update({ ordem: j }).eq('id', a.id),
+    db.from('funil_etapas').update({ ordem: i }).eq('id', b.id),
+  ]);
+  // normaliza a ordem de todo o funil (evita empates)
+  const nova = [...list]; nova[i]=b; nova[j]=a;
+  await Promise.all(nova.map((x,k) => x.ordem!==k ? db.from('funil_etapas').update({ ordem:k }).eq('id', x.id) : null));
+  await renderFunis();
+}
+async function excluirEtapa(id) {
+  const e = _D.etapas?.[id]; if (!e) return;
+  const n = _D.leadsPorEtapa?.[id] || 0;
+  if (n > 0) {
+    const outras = e.funil.funil_etapas.filter(x=>x.id!==id);
+    if (!outras.length) { showToast('Mova os leads para outro funil antes de excluir a única etapa.','error'); return; }
+    openModal(`
+      <div class="modal-header"><h3>Excluir etapa "${esc(e.nome)}"</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+      <form onsubmit="event.preventDefault();confirmarExcluirEtapa('${id}',this.destino.value)" style="padding:20px">
+        <div class="alert alert-warning">Há <strong>${n} lead(s)</strong> nesta etapa. Para onde eles devem ir?</div>
+        <div class="form-group"><label>Mover para</label><select name="destino" required>${outras.map(x=>`<option value="${x.id}">${esc(x.nome)}</option>`).join('')}</select></div>
+        <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
+          <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+          <button type="submit" class="btn btn-danger">Mover e excluir</button>
+        </div>
+      </form>`);
+    return;
+  }
+  if (!confirm(`Excluir a etapa "${e.nome}"?`)) return;
+  confirmarExcluirEtapa(id, null);
+}
+async function confirmarExcluirEtapa(id, destino) {
+  if (destino) {
+    const { error } = await db.from('leads').update({ etapa_id: destino }).eq('etapa_id', id);
+    if (error) { showToast('Erro: '+error.message,'error'); return; }
+  }
+  const { error } = await db.from('funil_etapas').delete().eq('id', id);
+  if (error) { showToast('Erro: '+error.message,'error'); return; }
+  showToast('Etapa excluída','success'); closeModal(); renderFunis();
+}
+
 // ============================================================
 // 26. USUÁRIOS & PERMISSÕES (admin)
 // ============================================================
 async function renderUsuarios() {
   if (profile?.role!=='admin') return semPermissao('Somente administradores gerenciam usuários.');
-  const { data: users, error } = await db.from('profiles').select('*').order('role').order('name');
+  const { data: users, error } = await db.from('profiles').select('*').neq('role','aluno').order('role').order('name');
   if (error) { setContent(`<div class="alert alert-warning">Erro: ${error.message}</div>`); return; }
   _D.users = users||[]; _D.usersMap = {}; users?.forEach(u => { _D.usersMap[u.id]=u; });
 
@@ -3186,6 +3498,7 @@ async function renderUsuarios() {
     <div class="alert alert-info">
       Cada perfil tem permissões padrão (Secretaria: alunos, pagamentos, trancamento e CRM • Financeiro: alunos e pagamentos • Professor: nenhuma).
       Clique em <strong>Permissões</strong> para liberar ou bloquear telas para uma pessoa específica.
+      Logins de <strong>alunos</strong> (Área de Membros) são criados pela ficha de cada aluno e não aparecem aqui.
     </div>
     <div class="card"><div class="table-wrapper"><table class="table">
       <thead><tr><th>Nome</th><th>Email</th><th>Perfil</th><th>Permissões</th><th>Status</th><th>Ações</th></tr></thead>
@@ -3338,12 +3651,12 @@ async function financeSnapshot() {
       q.push(db.from('parcelas').select('valor_pago,valor,desconto').eq('status','pago').gte('data_pagamento',ini).lte('data_pagamento',fim));
       q.push(db.from('parcelas').select('valor,desconto,aluno_id').eq('status','pendente').lt('vencimento',todayISO()));
     } else q.push(null,null,null);
-    q.push(can('crm_ver') ? db.from('leads').select('id,etapa').in('etapa', ETAPAS.filter(e=>!e.final).map(e=>e.id)) : null);
+    q.push(can('crm_ver') ? db.from('leads').select('id, funil_etapas(tipo)') : null);
     const [a,b,c,d] = await Promise.all(q);
     if (a?.data) out.previstoMes = a.data.reduce((s,p)=>s+valorLiquido(p),0);
     if (b?.data) out.recebidoMes = b.data.reduce((s,p)=>s+(Number(p.valor_pago)||valorLiquido(p)),0);
     if (c?.data) { out.atrasado = c.data.reduce((s,p)=>s+valorLiquido(p),0); out.alunosAtraso = new Set(c.data.map(p=>p.aluno_id)).size; }
-    if (d?.data) out.leadsAtivos = d.data.length;
+    if (d?.data) out.leadsAtivos = d.data.filter(l => (l.funil_etapas?.tipo||'aberta')==='aberta').length;
     out.ok = !(a?.error) ;
   } catch (_) {}
   return out;
@@ -3388,4 +3701,555 @@ async function renderDashboardSecretaria() {
         ${can('crm_ver') ? `<button class="action-card" onclick="showTab('crm')"><span class="action-icon">🎯</span><span>CRM</span></button>` : ''}
       </div>
     </div>`);
+}
+
+// ============================================================
+// 28. ÁREA DE MEMBROS — painéis, módulos, aulas, acessos
+// ============================================================
+const BUCKET_MATERIAIS = 'materiais';
+const BUCKET_CAPAS     = 'capas';
+const isAluno = () => profile?.role === 'aluno';
+
+function youtubeId(url='') {
+  const m = String(url).match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/))([\w-]{11})/);
+  return m ? m[1] : null;
+}
+function fileIcon(nome='') {
+  const ext = (nome.split('.').pop()||'').toLowerCase();
+  if (ext==='pdf') return '📄';
+  if (['doc','docx','odt','txt'].includes(ext)) return '📝';
+  if (['xls','xlsx','csv'].includes(ext)) return '📊';
+  if (['ppt','pptx'].includes(ext)) return '📽️';
+  if (['mp3','wav','m4a','ogg'].includes(ext)) return '🎧';
+  if (['mp4','mov','webm'].includes(ext)) return '🎬';
+  if (['png','jpg','jpeg','gif','webp'].includes(ext)) return '🖼️';
+  if (['zip','rar','7z'].includes(ext)) return '🗜️';
+  return '📎';
+}
+function aulaIcon(a) {
+  return { youtube:'▶️', link:'🔗', texto:'📖', arquivo: fileIcon(a.arquivo_nome||'') }[a.tipo] || '•';
+}
+function fmtBytes(b) { if (!b) return ''; if (b<1024*1024) return Math.round(b/1024)+' KB'; return (b/1024/1024).toFixed(1)+' MB'; }
+function textoHTML(t='') {
+  return esc(t).split(/\n{2,}/).map(p => '<p>'+p.replace(/\n/g,'<br>').replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>')+'</p>').join('');
+}
+function capaHTML(p, cls='painel-capa') {
+  return p.capa_url
+    ? `<div class="${cls}" style="background-image:url('${esc(p.capa_url)}')"></div>`
+    : `<div class="${cls} capa-fallback"><span>${esc((p.titulo||'?').slice(0,2).toUpperCase())}</span></div>`;
+}
+async function signedUrl(path) {
+  const { data, error } = await db.storage.from(BUCKET_MATERIAIS).createSignedUrl(path, 3600);
+  if (error) throw error;
+  return data.signedUrl;
+}
+
+// ---- Lista de painéis ----
+async function renderMembros() {
+  if (!isAluno() && !can('membros_ver')) return semPermissao();
+  const podeEd = can('membros_editar');
+  const [{ data: paineis, error }, { data: prog }] = await Promise.all([
+    db.from('paineis').select('*, painel_modulos(id, painel_aulas(id)), painel_acessos(id)').order('ordem').order('titulo'),
+    db.from('aula_progresso').select('aula_id').eq('profile_id', user.id).eq('concluida', true),
+  ]);
+  if (error) { setContent(`<div class="alert alert-warning">Erro: ${error.message}<br><span class="text-muted">Você já rodou o SQL <strong>03_area_membros.sql</strong>?</span></div>`); return; }
+  const feitas = new Set((prog||[]).map(p=>p.aula_id));
+  _D.paineis = {}; (paineis||[]).forEach(p => {
+    p._aulas = (p.painel_modulos||[]).flatMap(m => m.painel_aulas||[]);
+    p._feitas = p._aulas.filter(a => feitas.has(a.id)).length;
+    p._pct = p._aulas.length ? Math.round(p._feitas/p._aulas.length*100) : 0;
+    _D.paineis[p.id] = p;
+  });
+  const lista = paineis||[];
+
+  setContent(`
+    <div class="page-header">
+      <h2>${isAluno() ? `Olá, ${esc(profile?.name?.split(' ')[0])}! 👋` : 'Área de Membros 🎬'}</h2>
+      ${podeEd ? '<button class="btn btn-primary" onclick="openModalPainel(null)">+ Novo painel</button>' : ''}
+    </div>
+    ${isAluno() ? '<p class="text-muted" style="margin:-6px 0 16px">Seus materiais, aulas extras e conteúdos liberados pela escola.</p>' : ''}
+    ${lista.length ? `<div class="paineis-grid">
+      ${lista.map((p,i) => `
+        <div class="painel-card ${p.ativo?'':'inativo'}" onclick="openPainel('${p.id}')">
+          ${capaHTML(p)}
+          <div class="painel-body">
+            <div class="painel-titulo">${esc(p.titulo)}</div>
+            ${p.descricao ? `<div class="painel-desc">${esc(p.descricao)}</div>` : ''}
+            <div class="painel-meta">
+              <span>${p._aulas.length} aula${p._aulas.length===1?'':'s'}</span>
+              ${!isAluno() ? `<span>• ${p.liberado_todos ? 'todos os alunos' : (p.painel_acessos||[]).length+' aluno(s)'}</span>` : ''}
+              ${!p.ativo ? '<span class="badge badge-gray">Inativo</span>' : ''}
+            </div>
+            ${p._aulas.length ? `<div class="progress mini"><div class="progress-bar" style="width:${p._pct}%"></div><span>${p._pct}%</span></div>` : ''}
+            ${podeEd ? `<div class="action-btns painel-acoes" onclick="event.stopPropagation()">
+              <button class="btn btn-sm btn-secondary" onclick="openModalPainel('${p.id}')">✏️</button>
+              <button class="btn btn-sm btn-secondary" onclick="openModalAcessos('${p.id}')">👥 Alunos</button>
+              <button class="btn btn-sm btn-secondary" ${i===0?'disabled':''} onclick="moverPainel('${p.id}',-1)">▲</button>
+              <button class="btn btn-sm btn-secondary" ${i===lista.length-1?'disabled':''} onclick="moverPainel('${p.id}',1)">▼</button>
+            </div>` : ''}
+          </div>
+        </div>`).join('')}
+    </div>`
+    : `<div class="card"><div class="card-body"><p class="empty-state">${isAluno() ? 'Nenhum conteúdo liberado para você ainda. Fale com a escola 😊' : 'Nenhum painel criado. Clique em "+ Novo painel".'}</p></div></div>`}`);
+}
+
+async function moverPainel(id, dir) {
+  const ids = Object.values(_D.paineis).sort((a,b)=>a.ordem-b.ordem||a.titulo.localeCompare(b.titulo)).map(p=>p.id);
+  const i = ids.indexOf(id), j = i+dir; if (i<0||j<0||j>=ids.length) return;
+  [ids[i], ids[j]] = [ids[j], ids[i]];
+  await Promise.all(ids.map((pid,k) => db.from('paineis').update({ ordem:k }).eq('id', pid)));
+  renderMembros();
+}
+
+// ---- Painel (página com módulos e aulas) ----
+async function openPainel(id, aulaId) {
+  activeTab = 'painel';
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.tab==='membros'));
+  setContent(`<div class="loading"><div class="spinner"></div></div>`);
+  const [{ data: p, error }, { data: prog }] = await Promise.all([
+    db.from('paineis').select('*, painel_modulos(*, painel_aulas(*))').eq('id', id).single(),
+    db.from('aula_progresso').select('aula_id').eq('profile_id', user.id).eq('concluida', true),
+  ]);
+  if (error || !p) { setContent(`<div class="alert alert-warning">Painel não encontrado ou sem acesso.</div>`); return; }
+  p.painel_modulos = (p.painel_modulos||[]).sort((a,b)=>a.ordem-b.ordem);
+  p.painel_modulos.forEach(m => { m.painel_aulas = (m.painel_aulas||[]).sort((a,b)=>a.ordem-b.ordem); });
+  _D.painel = p; _D.feitas = new Set((prog||[]).map(x=>x.aula_id));
+  _D.aulas = {}; _D.modulos = {};
+  p.painel_modulos.forEach(m => { _D.modulos[m.id] = m; m.painel_aulas.forEach(a => { a.modulo = m; _D.aulas[a.id] = a; }); });
+  document.getElementById('page-title').textContent = p.titulo;
+  const podeEd = can('membros_editar');
+  _D.modoEdicao = _D.modoEdicao && podeEd;
+  const todas = p.painel_modulos.flatMap(m=>m.painel_aulas);
+  const primeira = aulaId && _D.aulas[aulaId] ? aulaId : (todas[0]?.id || null);
+
+  setContent(`
+    <button class="btn-link btn-back" onclick="showTab('membros')">← Voltar para a Área de Membros</button>
+    <div class="card painel-header">
+      ${capaHTML(p, 'painel-capa small')}
+      <div style="flex:1">
+        <h2 style="margin:0 0 4px">${esc(p.titulo)} ${!p.ativo?'<span class="badge badge-gray">Inativo</span>':''}</h2>
+        ${p.descricao ? `<div class="text-muted">${esc(p.descricao)}</div>` : ''}
+        <div class="text-muted" style="font-size:0.85rem;margin-top:6px">${todas.length} aula(s) • ${todas.filter(a=>_D.feitas.has(a.id)).length} concluída(s)</div>
+      </div>
+      ${podeEd ? `<div class="ficha-actions">
+        <button class="btn btn-sm ${_D.modoEdicao?'btn-warning':'btn-secondary'}" onclick="_D.modoEdicao=!_D.modoEdicao;openPainel('${p.id}',_D.aulaAtual)">${_D.modoEdicao?'✅ Sair da edição':'✏️ Editar conteúdo'}</button>
+        <button class="btn btn-sm btn-secondary" onclick="openModalAcessos('${p.id}')">👥 Alunos</button>
+        <button class="btn btn-sm btn-secondary" onclick="openModalPainel('${p.id}')">⚙️</button>
+      </div>` : ''}
+    </div>
+    <div class="painel-layout">
+      <aside class="painel-menu" id="painel-menu">${painelMenuHTML()}</aside>
+      <section class="painel-conteudo" id="painel-conteudo"></section>
+    </div>`);
+  if (primeira) abrirAula(primeira);
+  else document.getElementById('painel-conteudo').innerHTML = `<div class="card"><div class="card-body"><p class="empty-state">${_D.modoEdicao ? 'Comece adicionando um módulo no menu ao lado.' : 'Este painel ainda não tem aulas.'}</p></div></div>`;
+}
+
+function painelMenuHTML() {
+  const p = _D.painel; const ed = _D.modoEdicao;
+  return `
+    ${p.painel_modulos.map((m,mi) => `
+      <div class="modulo">
+        <div class="modulo-head">
+          <span class="modulo-titulo">${esc(m.titulo)}</span>
+          ${ed ? `<span class="action-btns">
+            <button class="btn-icon" title="Nova aula" onclick="openModalAula('${m.id}',null)">＋</button>
+            <button class="btn-icon" title="Editar módulo" onclick="openModalModulo('${m.id}')">✏️</button>
+            <button class="btn-icon" ${mi===0?'disabled':''} onclick="moverModulo('${m.id}',-1)">▲</button>
+            <button class="btn-icon" ${mi===p.painel_modulos.length-1?'disabled':''} onclick="moverModulo('${m.id}',1)">▼</button>
+          </span>` : `<span class="text-muted">${m.painel_aulas.filter(a=>_D.feitas.has(a.id)).length}/${m.painel_aulas.length}</span>`}
+        </div>
+        ${m.descricao ? `<div class="modulo-desc">${esc(m.descricao)}</div>` : ''}
+        <div class="aulas-list">
+          ${m.painel_aulas.map((a,ai) => `
+            <div class="aula-item ${a.id===_D.aulaAtual?'active':''} ${_D.feitas.has(a.id)?'feita':''}" onclick="abrirAula('${a.id}')">
+              <span class="aula-check">${_D.feitas.has(a.id)?'✓':aulaIcon(a)}</span>
+              <span class="aula-titulo">${esc(a.titulo)}</span>
+              ${ed ? `<span class="action-btns" onclick="event.stopPropagation()">
+                <button class="btn-icon" onclick="openModalAula('${m.id}','${a.id}')">✏️</button>
+                <button class="btn-icon" ${ai===0?'disabled':''} onclick="moverAula('${a.id}',-1)">▲</button>
+                <button class="btn-icon" ${ai===m.painel_aulas.length-1?'disabled':''} onclick="moverAula('${a.id}',1)">▼</button>
+              </span>` : ''}
+            </div>`).join('') || `<div class="text-muted" style="padding:6px 12px;font-size:0.82rem">${ed?'Sem aulas — clique em ＋':'Em breve'}</div>`}
+        </div>
+      </div>`).join('')}
+    ${ed ? `<button class="btn btn-secondary btn-full" style="margin-top:8px" onclick="openModalModulo(null)">+ Novo módulo</button>` : ''}`;
+}
+
+async function abrirAula(id) {
+  const a = _D.aulas?.[id]; if (!a) return;
+  _D.aulaAtual = id;
+  document.getElementById('painel-menu').innerHTML = painelMenuHTML();
+  const el = document.getElementById('painel-conteudo');
+  const todas = _D.painel.painel_modulos.flatMap(m=>m.painel_aulas);
+  const idx = todas.findIndex(x=>x.id===id);
+  const feita = _D.feitas.has(id);
+  let corpo = '';
+  if (a.tipo==='youtube') {
+    const yid = youtubeId(a.url);
+    corpo = yid ? `<div class="video-wrap"><iframe src="https://www.youtube.com/embed/${yid}?rel=0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`
+                : `<div class="alert alert-warning">Link do YouTube inválido. <a href="${esc(a.url)}" target="_blank" rel="noopener">Abrir mesmo assim</a></div>`;
+  } else if (a.tipo==='link') {
+    corpo = `<div class="aula-link-box"><div>🔗 Este conteúdo abre em outra aba.</div><a class="btn btn-primary" href="${esc(a.url)}" target="_blank" rel="noopener">Abrir conteúdo ↗</a><div class="text-muted" style="font-size:0.8rem;word-break:break-all">${esc(a.url)}</div></div>`;
+  } else if (a.tipo==='texto') {
+    corpo = `<div class="aula-texto">${textoHTML(a.conteudo)}</div>`;
+  } else if (a.tipo==='arquivo') {
+    corpo = `<div class="loading"><div class="spinner"></div></div>`;
+  }
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-body">
+        <div class="aula-head">
+          <div><div class="text-muted" style="font-size:0.8rem">${esc(a.modulo?.titulo)}</div><h3 style="margin:2px 0 0">${aulaIcon(a)} ${esc(a.titulo)}</h3></div>
+          <button class="btn btn-sm ${feita?'btn-success':'btn-secondary'}" onclick="toggleConcluida('${a.id}')">${feita?'✓ Concluída':'Marcar como concluída'}</button>
+        </div>
+        ${a.descricao ? `<p class="text-muted">${esc(a.descricao)}</p>` : ''}
+        <div id="aula-corpo">${corpo}</div>
+        <div class="aula-nav">
+          ${idx>0 ? `<button class="btn btn-sm btn-secondary" onclick="abrirAula('${todas[idx-1].id}')">‹ Anterior</button>` : '<span></span>'}
+          ${idx<todas.length-1 ? `<button class="btn btn-sm btn-primary" onclick="abrirAula('${todas[idx+1].id}')">Próxima ›</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+  if (a.tipo==='arquivo' && a.arquivo_path) {
+    try {
+      const url = await signedUrl(a.arquivo_path);
+      const corpoEl = document.getElementById('aula-corpo');
+      if (!corpoEl || _D.aulaAtual !== id) return;   // usuário já navegou para outra aula/tela
+      const isPdf = /\.pdf$/i.test(a.arquivo_nome||a.arquivo_path);
+      const isImg = /\.(png|jpe?g|gif|webp)$/i.test(a.arquivo_nome||'');
+      corpoEl.innerHTML = `
+        <div class="arquivo-bar">
+          <span>${fileIcon(a.arquivo_nome)} ${esc(a.arquivo_nome)} <span class="text-muted">${fmtBytes(a.arquivo_tamanho)}</span></span>
+          <a class="btn btn-sm btn-primary" href="${url}" target="_blank" rel="noopener" download="${esc(a.arquivo_nome)}">⬇ Baixar</a>
+        </div>
+        ${isPdf ? `<iframe class="pdf-frame" src="${url}"></iframe>` : isImg ? `<img src="${url}" style="max-width:100%;border-radius:12px">` : ''}`;
+    } catch (err) {
+      const corpoEl = document.getElementById('aula-corpo');
+      if (corpoEl) corpoEl.innerHTML = `<div class="alert alert-warning">Não foi possível carregar o arquivo: ${esc(err.message)}</div>`;
+    }
+  }
+}
+
+async function toggleConcluida(aulaId) {
+  const feita = _D.feitas.has(aulaId);
+  if (feita) {
+    const { error } = await db.from('aula_progresso').delete().eq('aula_id', aulaId).eq('profile_id', user.id);
+    if (error) { showToast('Erro: '+error.message,'error'); return; }
+    _D.feitas.delete(aulaId);
+  } else {
+    const { error } = await db.from('aula_progresso').upsert({ aula_id: aulaId, profile_id: user.id, concluida: true }, { onConflict: 'aula_id,profile_id' });
+    if (error) { showToast('Erro: '+error.message,'error'); return; }
+    _D.feitas.add(aulaId);
+    showToast('Aula concluída! 🎉','success');
+  }
+  abrirAula(aulaId);
+}
+
+// ---- Painel: criar / editar ----
+function openModalPainel(id) {
+  if (!can('membros_editar')) return;
+  const p = id ? (_D.paineis?.[id] || (_D.painel?.id===id ? _D.painel : null)) : null;
+  openModal(`
+    <div class="modal-header"><h3>${p?'Editar painel':'Novo painel'}</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <form onsubmit="savePainel(event)" style="padding:20px">
+      <div class="form-group"><label>Título *</label><input type="text" name="titulo" value="${esc(p?.titulo)}" placeholder="ex: Inglês — Material Extra, Clube de Conversação…" required></div>
+      <div class="form-group"><label>Descrição</label><textarea name="descricao" rows="2">${esc(p?.descricao)}</textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label>Capa (imagem)</label><input type="file" name="capa" accept="image/*"><span class="hint">Opcional. Recomendado 800×450px, até 5 MB.</span></div>
+        <div class="form-group"><label>ou link da imagem</label><input type="url" name="capa_url" value="${esc(p?.capa_url)}" placeholder="https://…"></div>
+      </div>
+      <div class="form-row">
+        <label class="perm-row"><div><div class="perm-label">Ativo</div><div class="perm-desc">Inativo fica oculto para os alunos</div></div>
+          <span class="switch"><input type="checkbox" name="ativo" ${p?.ativo!==false?'checked':''}><span class="slider"></span></span></label>
+        <label class="perm-row"><div><div class="perm-label">Liberar para todos os alunos ativos</div><div class="perm-desc">Sem precisar liberar um a um</div></div>
+          <span class="switch"><input type="checkbox" name="liberado_todos" ${p?.liberado_todos?'checked':''}><span class="slider"></span></span></label>
+      </div>
+      <input type="hidden" name="id" value="${p?.id||''}">
+      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
+        ${p ? `<button type="button" class="btn btn-danger" onclick="excluirPainel('${p.id}')">🗑 Excluir</button>` : ''}
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${p?'Salvar':'Criar painel'}</button>
+      </div>
+    </form>`);
+}
+async function savePainel(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target); const id = fd.get('id');
+  const row = { titulo: fd.get('titulo').trim(), descricao: fd.get('descricao').trim()||null,
+                ativo: fd.get('ativo')==='on', liberado_todos: fd.get('liberado_todos')==='on', capa_url: fd.get('capa_url').trim()||null };
+  const btn = e.target.querySelector('[type=submit]'); btn.disabled = true; btn.textContent = 'Salvando…';
+  try {
+    const capa = fd.get('capa');
+    if (capa && capa.size) {
+      const path = `${id||crypto.randomUUID()}/${Date.now()}-${capa.name.replace(/[^\w.\-]/g,'_')}`;
+      const { error: upErr } = await db.storage.from(BUCKET_CAPAS).upload(path, capa, { upsert: true });
+      if (upErr) throw upErr;
+      row.capa_url = db.storage.from(BUCKET_CAPAS).getPublicUrl(path).data.publicUrl;
+    }
+    if (id) { const { error } = await db.from('paineis').update(row).eq('id', id); if (error) throw error; }
+    else {
+      row.ordem = Object.keys(_D.paineis||{}).length; row.created_by = user.id;
+      const { data: novo, error } = await db.from('paineis').insert(row).select().single(); if (error) throw error;
+      showToast('Painel criado! Agora adicione módulos e aulas.','success'); closeModal();
+      _D.modoEdicao = true; openPainel(novo.id); return;
+    }
+    showToast('Painel salvo!','success'); closeModal();
+    if (activeTab==='painel') openPainel(id, _D.aulaAtual); else renderMembros();
+  } catch (err) { showToast('Erro: '+err.message,'error'); btn.disabled=false; btn.textContent='Salvar'; }
+}
+async function excluirPainel(id) {
+  if (!confirm('Excluir este painel com todos os módulos, aulas e liberações? Os arquivos enviados também serão removidos.')) return;
+  try {
+    const { data: files } = await db.storage.from(BUCKET_MATERIAIS).list(id, { limit: 1000 });
+    if (files?.length) await db.storage.from(BUCKET_MATERIAIS).remove(files.map(f => `${id}/${f.name}`));
+    const { error } = await db.from('paineis').delete().eq('id', id); if (error) throw error;
+    showToast('Painel excluído','success'); closeModal(); showTab('membros');
+  } catch (err) { showToast('Erro: '+err.message,'error'); }
+}
+
+// ---- Módulos ----
+function openModalModulo(id) {
+  const m = id ? _D.modulos?.[id] : null;
+  openModal(`
+    <div class="modal-header"><h3>${m?'Editar módulo':'Novo módulo'}</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <form onsubmit="saveModulo(event)" style="padding:20px">
+      <div class="form-group"><label>Título *</label><input type="text" name="titulo" value="${esc(m?.titulo)}" placeholder="ex: Módulo 1 — Boas-vindas" required></div>
+      <div class="form-group"><label>Descrição</label><input type="text" name="descricao" value="${esc(m?.descricao)}"></div>
+      <input type="hidden" name="id" value="${m?.id||''}">
+      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
+        ${m ? `<button type="button" class="btn btn-danger" onclick="excluirModulo('${m.id}')">🗑 Excluir</button>` : ''}
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${m?'Salvar':'Criar módulo'}</button>
+      </div>
+    </form>`);
+}
+async function saveModulo(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target); const id = fd.get('id');
+  const row = { titulo: fd.get('titulo').trim(), descricao: fd.get('descricao').trim()||null };
+  const res = id ? await db.from('painel_modulos').update(row).eq('id', id)
+                 : await db.from('painel_modulos').insert({ ...row, painel_id: _D.painel.id, ordem: _D.painel.painel_modulos.length });
+  if (res.error) { showToast('Erro: '+res.error.message,'error'); return; }
+  showToast(id?'Módulo salvo':'Módulo criado','success'); closeModal(); openPainel(_D.painel.id, _D.aulaAtual);
+}
+async function excluirModulo(id) {
+  const m = _D.modulos?.[id];
+  if (!confirm(`Excluir o módulo "${m?.titulo}" e suas ${m?.painel_aulas.length||0} aula(s)?`)) return;
+  for (const a of (m?.painel_aulas||[])) if (a.arquivo_path) await db.storage.from(BUCKET_MATERIAIS).remove([a.arquivo_path]);
+  const { error } = await db.from('painel_modulos').delete().eq('id', id);
+  if (error) { showToast('Erro: '+error.message,'error'); return; }
+  showToast('Módulo excluído','success'); closeModal(); _D.aulaAtual = null; openPainel(_D.painel.id);
+}
+async function moverModulo(id, dir) {
+  const list = _D.painel.painel_modulos.map(m=>m.id); const i = list.indexOf(id), j = i+dir;
+  if (i<0||j<0||j>=list.length) return; [list[i],list[j]]=[list[j],list[i]];
+  await Promise.all(list.map((mid,k)=>db.from('painel_modulos').update({ordem:k}).eq('id',mid)));
+  openPainel(_D.painel.id, _D.aulaAtual);
+}
+
+// ---- Aulas ----
+function openModalAula(moduloId, aulaId) {
+  const a = aulaId ? _D.aulas?.[aulaId] : null;
+  const tipo = a?.tipo || 'arquivo';
+  openModal(`
+    <div class="modal-header"><h3>${a?'Editar aula':'Nova aula / material'}</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <form onsubmit="saveAula(event)" style="padding:20px">
+      <div class="form-group"><label>Título *</label><input type="text" name="titulo" value="${esc(a?.titulo)}" placeholder="ex: Apostila Unit 1, Aula extra de pronúncia…" required></div>
+      <div class="form-group"><label>Descrição</label><input type="text" name="descricao" value="${esc(a?.descricao)}"></div>
+      <div class="form-group"><label>Tipo de conteúdo</label>
+        <div class="tipo-opts">
+          ${[['arquivo','📄 Arquivo (PDF, áudio, etc.)'],['youtube','▶️ Vídeo do YouTube'],['link','🔗 Link externo'],['texto','📖 Texto']].map(([v,l]) =>
+            `<label class="chip ${tipo===v?'active':''}"><input type="radio" name="tipo" value="${v}" ${tipo===v?'checked':''} onchange="trocaTipoAula(this)" style="display:none">${l}</label>`).join('')}
+        </div>
+      </div>
+      <div id="tipo-arquivo" class="tipo-box" style="display:${tipo==='arquivo'?'':'none'}">
+        <div class="form-group"><label>Arquivo ${a?.arquivo_nome ? '(atual: '+esc(a.arquivo_nome)+')' : '*'}</label>
+          <input type="file" name="arquivo" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.mp3,.m4a,.wav,.mp4,.png,.jpg,.jpeg,.zip,.txt">
+          <span class="hint">Até 50 MB. PDFs e imagens abrem dentro da área; os demais ficam para download.</span></div>
+      </div>
+      <div id="tipo-youtube" class="tipo-box" style="display:${tipo==='youtube'?'':'none'}">
+        <div class="form-group"><label>Link do vídeo *</label><input type="url" name="url_youtube" value="${esc(tipo==='youtube'?a?.url:'')}" placeholder="https://www.youtube.com/watch?v=…"><span class="hint">Dica: no YouTube, deixe o vídeo como "Não listado" para só quem tem o link ver.</span></div>
+      </div>
+      <div id="tipo-link" class="tipo-box" style="display:${tipo==='link'?'':'none'}">
+        <div class="form-group"><label>Link *</label><input type="url" name="url_link" value="${esc(tipo==='link'?a?.url:'')}" placeholder="https://drive.google.com/… ou https://meet.google.com/…"></div>
+      </div>
+      <div id="tipo-texto" class="tipo-box" style="display:${tipo==='texto'?'':'none'}">
+        <div class="form-group"><label>Texto *</label><textarea name="conteudo" rows="8" placeholder="Escreva o conteúdo. Links viram clicáveis automaticamente.">${esc(a?.conteudo)}</textarea></div>
+      </div>
+      <input type="hidden" name="id" value="${a?.id||''}"><input type="hidden" name="modulo_id" value="${moduloId}">
+      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
+        ${a ? `<button type="button" class="btn btn-danger" onclick="excluirAula('${a.id}')">🗑 Excluir</button>` : ''}
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${a?'Salvar':'Adicionar'}</button>
+      </div>
+    </form>`);
+}
+function trocaTipoAula(radio) {
+  document.querySelectorAll('.tipo-opts .chip').forEach(c => c.classList.toggle('active', c.querySelector('input').checked));
+  document.querySelectorAll('.tipo-box').forEach(b => { b.style.display = b.id==='tipo-'+radio.value ? '' : 'none'; });
+}
+async function saveAula(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target); const id = fd.get('id'); const a = id ? _D.aulas?.[id] : null;
+  const tipo = fd.get('tipo');
+  const row = { titulo: fd.get('titulo').trim(), descricao: fd.get('descricao').trim()||null, tipo, url:null, conteudo:null };
+  const btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
+  try {
+    if (tipo==='youtube') { row.url = fd.get('url_youtube').trim(); if (!youtubeId(row.url)) throw new Error('Cole um link válido do YouTube'); }
+    if (tipo==='link')    { row.url = fd.get('url_link').trim(); if (!row.url) throw new Error('Informe o link'); }
+    if (tipo==='texto')   { row.conteudo = fd.get('conteudo').trim(); if (!row.conteudo) throw new Error('Escreva o texto'); }
+    if (tipo==='arquivo') {
+      const file = fd.get('arquivo');
+      if (file && file.size) {
+        if (file.size > 50*1024*1024) throw new Error('Arquivo maior que 50 MB');
+        btn.textContent = 'Enviando arquivo…';
+        const path = `${_D.painel.id}/${Date.now()}-${file.name.replace(/[^\w.\-]/g,'_')}`;
+        const { error: upErr } = await db.storage.from(BUCKET_MATERIAIS).upload(path, file, { upsert:false });
+        if (upErr) throw upErr;
+        if (a?.arquivo_path) await db.storage.from(BUCKET_MATERIAIS).remove([a.arquivo_path]);
+        row.arquivo_path = path; row.arquivo_nome = file.name; row.arquivo_tamanho = file.size;
+      } else if (!a?.arquivo_path) throw new Error('Selecione um arquivo');
+    } else if (a?.arquivo_path) {
+      await db.storage.from(BUCKET_MATERIAIS).remove([a.arquivo_path]);
+      row.arquivo_path = null; row.arquivo_nome = null; row.arquivo_tamanho = null;
+    }
+    const res = id ? await db.from('painel_aulas').update(row).eq('id', id)
+                   : await db.from('painel_aulas').insert({ ...row, modulo_id: fd.get('modulo_id'), ordem: (_D.modulos[fd.get('modulo_id')]?.painel_aulas.length||0) }).select().single();
+    if (res.error) throw res.error;
+    showToast(id?'Aula salva!':'Aula adicionada! ✅','success'); closeModal();
+    openPainel(_D.painel.id, id || res.data?.id);
+  } catch (err) { showToast('Erro: '+err.message,'error'); btn.disabled=false; btn.textContent = id?'Salvar':'Adicionar'; }
+}
+async function excluirAula(id) {
+  const a = _D.aulas?.[id]; if (!a) return;
+  if (!confirm(`Excluir a aula "${a.titulo}"?`)) return;
+  if (a.arquivo_path) await db.storage.from(BUCKET_MATERIAIS).remove([a.arquivo_path]);
+  const { error } = await db.from('painel_aulas').delete().eq('id', id);
+  if (error) { showToast('Erro: '+error.message,'error'); return; }
+  showToast('Aula excluída','success'); closeModal(); _D.aulaAtual = null; openPainel(_D.painel.id);
+}
+async function moverAula(id, dir) {
+  const a = _D.aulas?.[id]; const list = a.modulo.painel_aulas.map(x=>x.id); const i = list.indexOf(id), j = i+dir;
+  if (i<0||j<0||j>=list.length) return; [list[i],list[j]]=[list[j],list[i]];
+  await Promise.all(list.map((aid,k)=>db.from('painel_aulas').update({ordem:k}).eq('id',aid)));
+  openPainel(_D.painel.id, _D.aulaAtual);
+}
+
+// ---- Acessos (liberar alunos) ----
+async function openModalAcessos(painelId) {
+  if (!can('membros_editar')) return;
+  const p = _D.paineis?.[painelId] || _D.painel;
+  const [{ data: alunos }, { data: acessos }] = await Promise.all([
+    db.from('alunos').select('id,nome,email,status,profile_id').order('nome'),
+    db.from('painel_acessos').select('aluno_id').eq('painel_id', painelId),
+  ]);
+  const lib = new Set((acessos||[]).map(a=>a.aluno_id));
+  _D.acessosPainel = painelId;
+  openModal(`
+    <div class="modal-header"><h3>👥 Quem acessa "${esc(p?.titulo)}"</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div style="padding:20px">
+      ${p?.liberado_todos ? '<div class="alert alert-info">Este painel está <strong>liberado para todos os alunos ativos</strong>. As marcações abaixo valem como extra (ex.: manter acesso após trancar).</div>' : ''}
+      <div class="toolbar"><input type="text" class="search-input" placeholder="🔍 Buscar aluno…" oninput="filterAcessos(this.value)">
+        <span class="text-muted" id="acessos-count">${lib.size} liberado(s)</span></div>
+      <div class="acessos-list">
+        ${(alunos||[]).map(a => `
+          <label class="perm-row acesso-row" data-n="${esc((a.nome+' '+(a.email||'')).toLowerCase())}">
+            <div><div class="perm-label">${esc(a.nome)} ${a.status!=='ativo'?alunoStatusBadge(a.status):''}</div>
+              <div class="perm-desc">${esc(a.email)||'sem email'} ${a.profile_id?'• <span class="text-success">tem login</span>':'• <span class="text-danger">sem login</span>'}</div></div>
+            <span class="switch"><input type="checkbox" ${lib.has(a.id)?'checked':''} onchange="toggleAcesso('${painelId}','${a.id}',this.checked)"><span class="slider"></span></span>
+          </label>`).join('') || '<p class="empty-state">Nenhum aluno cadastrado.</p>'}
+      </div>
+      <p class="hint">Alunos sem login não conseguem entrar — crie o acesso na ficha do aluno (botão "Criar acesso").</p>
+      <div class="modal-footer" style="padding:0;margin-top:16px;border:none"><button class="btn btn-primary" onclick="closeModal();if(activeTab==='membros')renderMembros()">Concluir</button></div>
+    </div>`);
+}
+function filterAcessos(q) {
+  q = (q||'').toLowerCase();
+  document.querySelectorAll('.acesso-row').forEach(r => { r.style.display = r.dataset.n.includes(q)?'':'none'; });
+}
+async function toggleAcesso(painelId, alunoId, on) {
+  const res = on ? await db.from('painel_acessos').upsert({ painel_id:painelId, aluno_id:alunoId, liberado_por:user.id }, { onConflict:'painel_id,aluno_id' })
+                 : await db.from('painel_acessos').delete().eq('painel_id', painelId).eq('aluno_id', alunoId);
+  if (res.error) { showToast('Erro: '+res.error.message,'error'); return; }
+  const c = document.getElementById('acessos-count');
+  if (c) { const n = document.querySelectorAll('.acesso-row input:checked').length; c.textContent = `${n} liberado(s)`; }
+  showToast(on ? 'Acesso liberado' : 'Acesso removido', 'success');
+}
+
+// ---- Ficha do aluno: aba "Área de Membros" + login do aluno ----
+async function fichaMembrosHTML() {
+  const a = _D.fichaAluno;
+  const [{ data: paineis }, { data: acessos }, { data: prog }] = await Promise.all([
+    db.from('paineis').select('id,titulo,ativo,liberado_todos, painel_modulos(painel_aulas(id))').order('ordem').order('titulo'),
+    db.from('painel_acessos').select('painel_id').eq('aluno_id', a.id),
+    a.profile_id ? db.from('aula_progresso').select('aula_id').eq('profile_id', a.profile_id).eq('concluida', true) : Promise.resolve({data:[]}),
+  ]);
+  const lib = new Set((acessos||[]).map(x=>x.painel_id)); const feitas = new Set((prog||[]).map(x=>x.aula_id));
+  const podeEd = can('membros_editar');
+  const loginBox = a.profile_id
+    ? `<div class="alert alert-info">🔑 Login criado — o aluno entra com <strong>${esc(a.email)}</strong>.
+        ${podeEd ? `<button class="btn btn-sm btn-secondary" onclick="resetSenhaAluno('${a.id}')">Enviar redefinição de senha</button>` : ''}</div>`
+    : `<div class="alert alert-warning">Este aluno ainda <strong>não tem login</strong> na Área de Membros.
+        ${podeEd ? (a.email ? `<button class="btn btn-sm btn-primary" onclick="criarAcessoAluno('${a.id}')">🔑 Criar acesso</button>` : '<span class="text-muted">Cadastre um email na ficha para criar o acesso.</span>') : ''}</div>`;
+  return `${loginBox}
+    <div class="card"><div class="card-header"><h3>Painéis</h3></div><div class="card-body">
+      ${(paineis||[]).length ? paineis.map(p => {
+        const aulas = (p.painel_modulos||[]).flatMap(m=>m.painel_aulas||[]);
+        const f = aulas.filter(x=>feitas.has(x.id)).length;
+        const tem = lib.has(p.id) || p.liberado_todos;
+        return `<label class="perm-row">
+          <div><div class="perm-label">${esc(p.titulo)} ${!p.ativo?'<span class="badge badge-gray">Inativo</span>':''} ${p.liberado_todos?'<span class="badge badge-info">todos</span>':''}</div>
+            <div class="perm-desc">${aulas.length} aula(s)${a.profile_id && aulas.length ? ` • ${f} concluída(s) (${Math.round(f/aulas.length*100)}%)` : ''}</div></div>
+          <span class="switch"><input type="checkbox" ${lib.has(p.id)?'checked':''} ${podeEd?'':'disabled'} onchange="toggleAcesso('${p.id}','${a.id}',this.checked)"><span class="slider"></span></span>
+        </label>`; }).join('') : '<p class="empty-state">Nenhum painel criado ainda.</p>'}
+    </div></div>`;
+}
+async function criarAcessoAluno(alunoId) {
+  const a = _D.alunos?.[alunoId] || _D.fichaAluno;
+  if (!a?.email) { showToast('O aluno precisa ter um email cadastrado','error'); return; }
+  if (!confirm(`Criar login para ${a.nome} com o email ${a.email}?\nSenha inicial: VMLI2024! (o aluno pode trocar em "Minha conta").`)) return;
+  try {
+    const nu = await createAuthUser({ name: a.nome, email: a.email, role: 'aluno' });
+    if (!nu) throw new Error('Não foi possível criar o usuário');
+    const { error } = await db.from('alunos').update({ profile_id: nu.id }).eq('id', alunoId); if (error) throw error;
+    await logHistorico(alunoId, 'nota', 'Login da Área de Membros criado');
+    showToast('Acesso criado! Senha inicial: VMLI2024!','success'); openFichaAluno(alunoId, 'membros');
+  } catch (err) {
+    let msg = 'Erro: '+err.message;
+    if (/already/i.test(err.message)) msg = 'Já existe um login com este email. Se for deste aluno, me avise para vincular.';
+    showToast(msg,'error');
+  }
+}
+async function resetSenhaAluno(alunoId) {
+  const a = _D.alunos?.[alunoId] || _D.fichaAluno;
+  const { error } = await db.auth.resetPasswordForEmail(a.email, { redirectTo: window.location.href });
+  showToast(error ? 'Erro: '+error.message : `Email de redefinição enviado para ${a.email}`, error?'error':'success');
+}
+
+// ---- Minha conta (aluno e equipe): trocar senha ----
+function renderMinhaConta() {
+  setContent(`
+    <div class="page-header"><h2>Minha conta 👤</h2></div>
+    <div class="card"><div class="card-body">
+      <div class="info-grid" style="margin-bottom:20px">
+        <div class="info-item"><span class="info-label">Nome</span><span class="info-value">${esc(profile?.name)}</span></div>
+        <div class="info-item"><span class="info-label">Email</span><span class="info-value">${esc(profile?.email||user?.email)}</span></div>
+        <div class="info-item"><span class="info-label">Perfil</span><span class="info-value">${getRoleLabel(profile?.role)}</span></div>
+      </div>
+      <h3 style="margin:0 0 10px">🔑 Trocar senha</h3>
+      <form onsubmit="salvarNovaSenha(event)" style="max-width:420px">
+        <div class="form-group"><label>Nova senha *</label><input type="password" name="senha" minlength="6" required autocomplete="new-password"></div>
+        <div class="form-group"><label>Repita a nova senha *</label><input type="password" name="senha2" minlength="6" required autocomplete="new-password"></div>
+        <button type="submit" class="btn btn-primary">Salvar nova senha</button>
+      </form>
+    </div></div>`);
+}
+async function salvarNovaSenha(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  if (fd.get('senha') !== fd.get('senha2')) { showToast('As senhas não conferem','error'); return; }
+  const { error } = await db.auth.updateUser({ password: fd.get('senha') });
+  if (error) { showToast('Erro: '+error.message,'error'); return; }
+  showToast('Senha alterada com sucesso! ✅','success'); e.target.reset();
 }

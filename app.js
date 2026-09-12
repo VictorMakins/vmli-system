@@ -1919,6 +1919,7 @@ const PERMS = [
   { key:'crm_funis',         label:'Configurar funis do CRM',           desc:'Cria, edita e exclui funis e etapas' },
   { key:'membros_ver',       label:'Ver Área de Membros',               desc:'Acessa todos os painéis e materiais como equipe' },
   { key:'membros_editar',    label:'Editar Área de Membros',            desc:'Cria painéis, envia arquivos e libera alunos' },
+  { key:'excluir_registros', label:'Excluir registros',                 desc:'Apaga alunos e lançamentos em definitivo. O que for apagado fica guardado na lixeira.' },
 ];
 const PERM_DEFAULTS = {
   admin:      PERMS.map(p=>p.key),
@@ -2338,6 +2339,7 @@ async function openFichaAluno(id, tab) {
         ${can('alunos_editar') ? `<button class="btn btn-sm btn-secondary" onclick="openModalAluno('${a.id}')">✏️ Editar dados</button>` : ''}
         ${can('membros_editar') && !a.profile_id && a.email ? `<button class="btn btn-sm btn-info" onclick="criarAcessoAluno('${a.id}')">🔑 Criar acesso</button>` : ''}
         ${acoesStatus}
+        ${can('excluir_registros') ? `<button class="btn btn-sm btn-danger" onclick="openModalExcluirAluno('${a.id}')">🗑 Excluir aluno</button>` : ''}
       </div>
     </div>
 
@@ -2547,7 +2549,8 @@ function fichaCaixaHTML() {
       <td>${parcelaBadge(p)} <span class="text-muted">#${p.numero}</span></td>
       <td><div class="action-btns">
         ${podeEd && p.status==='pendente' ? `<button class="btn btn-sm btn-success" onclick="openModalPagar('${p.id}','caixa')">💵 Receber</button>` : ''}
-        ${podeEd && pago ? `<button class="btn btn-sm btn-secondary" onclick="openModalPagar('${p.id}','caixa')">✏️</button>` : ''}
+        ${podeEd ? `<button class="btn btn-sm btn-secondary" onclick="openModalParcela('${p.aluno_id}','${p.id}','caixa')" title="Editar lançamento">✏️</button>` : ''}
+        ${podeEd && can('excluir_registros') ? `<button class="btn btn-sm btn-danger" onclick="removerParcela('${p.id}','caixa')" title="Excluir lançamento">🗑</button>` : ''}
       </div></td>
     </tr>`;
   };
@@ -2582,7 +2585,7 @@ function fichaCaixaHTML() {
       <div class="card-header">
         <h3>Movimento de ${MONTHS[mes]} ${ano}</h3>
         <div class="action-btns">
-          ${podeEd ? `<button class="btn btn-sm btn-secondary" onclick="openModalParcela('${a.id}',null)">+ Lançamento</button>` : ''}
+          ${podeEd ? `<button class="btn btn-sm btn-secondary" onclick="openModalParcela('${a.id}',null,'caixa')">+ Lançamento</button>` : ''}
         </div>
       </div>
       <div class="table-wrapper">
@@ -2602,6 +2605,87 @@ function fichaCaixaHTML() {
     </div>`;
 }
 
+// ---- Excluir aluno (definitivo, com cópia na lixeira) ----
+function openModalExcluirAluno(alunoId) {
+  if (!can('excluir_registros')) { showToast('Você não tem permissão para excluir','error'); return; }
+  const a  = _D.alunos?.[alunoId] || _D.fichaAluno; if (!a) return;
+  const ps = _D.fichaParcelas || [];
+  const pagas = ps.filter(p=>p.status==='pago');
+  const totalPago = pagas.reduce((s,p)=>s+(Number(p.valor_pago)||valorLiquido(p)),0);
+  const turmas = (_D.fichaTurmas||[]).filter(t=>t.turmas).length;
+
+  openModal(`
+    <div class="modal-header">
+      <h3>🗑 Excluir aluno</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <form onsubmit="confirmarExcluirAluno(event)" style="padding:20px">
+      <div class="alert alert-warning">
+        Você está prestes a excluir <strong>${esc(a.nome)}</strong> em definitivo.<br>
+        Uma cópia completa fica guardada na lixeira, mas o aluno some de todas as telas.
+      </div>
+      <p style="margin:14px 0 6px">Será apagado junto:</p>
+      <ul style="margin:0 0 16px 18px;line-height:1.8">
+        <li><strong>${ps.length}</strong> lançamento(s) financeiro(s)${pagas.length ? ` — sendo ${pagas.length} já pago(s), ${formatCurrency(totalPago)}` : ''}</li>
+        <li>Vínculo com <strong>${turmas}</strong> turma(s) e as presenças registradas</li>
+        <li>Todo o histórico da ficha e os acessos à Área de Membros</li>
+      </ul>
+      ${pagas.length ? `<div class="alert alert-danger">⚠️ Este aluno tem pagamento registrado. Excluir vai <strong>tirar ${formatCurrency(totalPago)} dos relatórios financeiros</strong>. Se a ideia é só encerrar a matrícula, cancele em vez de excluir.</div>` : ''}
+      <div class="form-group">
+        <label>Para confirmar, digite o nome do aluno *</label>
+        <input type="text" name="confirmacao" placeholder="${esc(a.nome)}" autocomplete="off" required>
+      </div>
+      <div class="form-group">
+        <label>Motivo da exclusão</label>
+        <input type="text" name="motivo" placeholder="ex: cadastro duplicado da importação">
+      </div>
+      <input type="hidden" name="id" value="${a.id}">
+      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-danger">Excluir em definitivo</button>
+      </div>
+    </form>`);
+}
+
+async function confirmarExcluirAluno(e) {
+  e.preventDefault();
+  if (!can('excluir_registros')) { showToast('Você não tem permissão para excluir','error'); return; }
+  const fd = new FormData(e.target);
+  const id = fd.get('id');
+  const a  = _D.alunos?.[id] || _D.fichaAluno;
+  const norm = s => (s||'').toString().trim().toLowerCase().replace(/\s+/g,' ');
+  if (norm(fd.get('confirmacao')) !== norm(a?.nome)) {
+    showToast('O nome digitado não confere — nada foi excluído','error'); return;
+  }
+  const btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
+
+  // 1) fotografia completa antes de apagar
+  const salvo = await registrarExclusao('aluno', a.nome, {
+    aluno: a,
+    parcelas: _D.fichaParcelas || [],
+    historico: _D.fichaHist || [],
+    turmas: (_D.fichaTurmas || []).map(t => ({ id:t.id, status:t.status, turma:t.turmas?.codigo })),
+  }, fd.get('motivo'));
+
+  // 2) apaga os dependentes antes do aluno (evita erro de chave estrangeira)
+  const filhos = ['presencas','painel_acessos','turma_alunos','aluno_historico','parcelas'];
+  for (const t of filhos) {
+    const { error } = await db.from(t).delete().eq('aluno_id', id);
+    if (error && !/does not exist|column|schema/i.test(error.message||'')) {
+      showToast(`Erro ao limpar ${t}: ${error.message}`,'error'); btn.disabled = false; return;
+    }
+  }
+  // leads apontam para o aluno, mas o lead em si deve sobreviver
+  await db.from('leads').update({ aluno_id: null }).eq('aluno_id', id);
+
+  // 3) o aluno
+  const { error } = await db.from('alunos').delete().eq('id', id);
+  if (error) { showToast('Erro ao excluir: '+error.message,'error'); btn.disabled = false; return; }
+
+  showToast(salvo ? `${a.nome} foi excluído (cópia na lixeira)` : `${a.nome} excluído — lixeira indisponível, rode o SQL 06`, salvo?'success':'info');
+  closeModal(); showTab('alunos');
+}
+
 function msgCobranca(a, parcelas) {
   const nome = a.nome.split(' ')[0];
   const lista = parcelas.map(p => `parcela ${p.numero} (venc. ${formatDate(p.vencimento)}) — ${formatCurrency(valorLiquido(p))}`).join(', ');
@@ -2617,13 +2701,12 @@ function parcelaRow(p, podeEd) {
   let acoes = '';
   if (podeEd) {
     if (p.status==='pendente')
-      acoes = `<button class="btn btn-sm btn-success" onclick="openModalPagar('${p.id}')">💵 Pagar</button>
-               <button class="btn btn-sm btn-secondary" onclick="openModalParcela('${p.aluno_id}','${p.id}')">Editar</button>
-               <button class="btn btn-sm btn-danger" onclick="removerParcela('${p.id}')">🗑</button>`;
+      acoes = `<button class="btn btn-sm btn-success" onclick="openModalPagar('${p.id}')">💵 Pagar</button>`;
     else if (p.status==='pago')
       acoes = `<button class="btn btn-sm btn-secondary" onclick="desfazerPagamento('${p.id}')">Desfazer</button>`;
-    else if (p.status==='suspensa')
-      acoes = `<button class="btn btn-sm btn-secondary" onclick="openModalParcela('${p.aluno_id}','${p.id}')">Editar</button>`;
+    acoes += `<button class="btn btn-sm btn-secondary" onclick="openModalParcela('${p.aluno_id}','${p.id}','financeiro')">✏️ Editar</button>`;
+    if (can('excluir_registros'))
+      acoes += `<button class="btn btn-sm btn-danger" onclick="removerParcela('${p.id}','financeiro')">🗑</button>`;
   }
   return `<tr class="row-${e}">
     <td>${p.numero}</td>
@@ -2707,13 +2790,16 @@ async function aplicarPlano(alunoId, plano, mode) {
 }
 
 // ---- Parcela avulsa / editar ----
-function openModalParcela(alunoId, parcelaId) {
+function openModalParcela(alunoId, parcelaId, voltar) {
   const p = parcelaId ? _D.parcelas?.[parcelaId] : null;
   const ps = _D.fichaParcelas || [];
   const nextNum = ps.length ? Math.max(...ps.map(x=>x.numero))+1 : 1;
+  const st = p?.status || 'pendente';
+  const back = voltar || _D.fichaTab || 'financeiro';
+  const podeExcluir = can('excluir_registros');
   openModal(`
     <div class="modal-header">
-      <h3>${p ? `Editar parcela ${p.numero}` : 'Nova parcela avulsa'}</h3>
+      <h3>${p ? `Editar lançamento nº ${p.numero}` : 'Novo lançamento'}</h3>
       <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
     <form onsubmit="saveParcela(event)" style="padding:20px">
@@ -2727,26 +2813,68 @@ function openModalParcela(alunoId, parcelaId) {
       </div>
       <div class="form-row">
         ${competenciaField(p, p?.vencimento || todayISO())}
-        <div class="form-group"><label>Observação</label><input type="text" name="obs" value="${esc(p?.obs)}" placeholder="ex: taxa de material, ajuste…"></div>
+        <div class="form-group">
+          <label>Situação *</label>
+          <select name="status" onchange="toggleParcelaPago(this)" required>
+            ${[['pendente','Pendente — ainda vai receber'],
+               ['pago','Pago — já recebeu'],
+               ['suspensa','Suspensa — curso trancado'],
+               ['cancelada','Cancelada — não vale mais']]
+              .map(([v,l]) => `<option value="${v}" ${st===v?'selected':''}>${l}</option>`).join('')}
+          </select>
+        </div>
       </div>
-      <input type="hidden" name="id" value="${p?.id||''}"><input type="hidden" name="aluno_id" value="${alunoId}">
-      <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
-        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-        <button type="submit" class="btn btn-primary">${p?'Salvar':'Adicionar'}</button>
+
+      <fieldset id="box-pago" class="plano-box" style="${st==='pago'?'':'display:none'};border:1px solid var(--border,#e5e7eb);border-radius:8px;padding:12px;margin-bottom:12px">
+        <legend style="padding:0 6px;font-size:13px">💵 Dados do recebimento</legend>
+        <div class="form-row">
+          <div class="form-group"><label>Data do pagamento</label><input type="date" name="data_pagamento" value="${p?.data_pagamento||todayISO()}"></div>
+          <div class="form-group"><label>Forma</label><select name="forma_pagamento">${selectOptions(FORMAS_PGTO, p?.forma_pagamento||'pix')}</select></div>
+        </div>
+        <div class="form-group"><label>Valor recebido (R$)</label><input type="number" step="0.01" min="0" name="valor_pago" value="${p?.valor_pago ?? ''}" placeholder="deixe vazio para usar o valor da parcela"></div>
+      </fieldset>
+
+      <div class="form-group"><label>Observação</label><input type="text" name="obs" value="${esc(p?.obs)}" placeholder="ex: taxa de material, ajuste…"></div>
+      <input type="hidden" name="id" value="${p?.id||''}"><input type="hidden" name="aluno_id" value="${alunoId}"><input type="hidden" name="voltar" value="${back}">
+      <div class="modal-footer" style="padding:0;margin-top:20px;border:none;display:flex;justify-content:space-between">
+        <div>${p && podeExcluir ? `<button type="button" class="btn btn-danger" onclick="removerParcela('${p.id}','${back}')">🗑 Excluir lançamento</button>` : ''}</div>
+        <div class="action-btns">
+          <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary">${p?'Salvar':'Adicionar'}</button>
+        </div>
       </div>
     </form>`);
+}
+
+function toggleParcelaPago(sel) {
+  const box = document.getElementById('box-pago');
+  if (box) box.style.display = sel.value === 'pago' ? '' : 'none';
 }
 
 async function saveParcela(e) {
   e.preventDefault();
   const fd = new FormData(e.target);
-  const id = fd.get('id'), alunoId = fd.get('aluno_id');
-  const row = { numero: parseInt(fd.get('numero')), vencimento: fd.get('vencimento'), valor: parseFloat(fd.get('valor')||0),
-                desconto: parseFloat(fd.get('desconto')||0), obs: fd.get('obs').trim()||null,
+  const id = fd.get('id'), alunoId = fd.get('aluno_id'), volta = fd.get('voltar') || 'financeiro';
+  const status = fd.get('status') || 'pendente';
+  const valor  = parseFloat(fd.get('valor')||0);
+  const desc   = parseFloat(fd.get('desconto')||0);
+
+  const row = { numero: parseInt(fd.get('numero')), vencimento: fd.get('vencimento'),
+                valor, desconto: desc, status, obs: (fd.get('obs')||'').trim()||null,
                 competencia: competenciaValue(fd.get('competencia')) };
+
+  if (status === 'pago') {
+    row.data_pagamento  = fd.get('data_pagamento') || todayISO();
+    row.forma_pagamento = fd.get('forma_pagamento') || null;
+    row.valor_pago      = parseFloat(fd.get('valor_pago') || 0) || (valor - desc);
+    row.pago_por        = user.id;
+  } else {                                    // deixou de ser pago: limpa o recebimento
+    row.data_pagamento = null; row.forma_pagamento = null; row.valor_pago = null; row.pago_por = null;
+  }
+
   const btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
   const grava = r => id ? db.from('parcelas').update(r).eq('id', id)
-                        : db.from('parcelas').insert({ ...r, aluno_id: alunoId, status:'pendente' });
+                        : db.from('parcelas').insert({ ...r, aluno_id: alunoId });
   let { error } = await grava(row);
   if (error && /competencia/i.test(error.message||'')) {           // SQL 04 ainda não rodado
     showToast('Salvo sem o "Referente a" — rode o SQL 04_caixa_competencia.sql','info');
@@ -2754,18 +2882,40 @@ async function saveParcela(e) {
     ({ error } = await grava(row));
   }
   if (error) { showToast('Erro: '+error.message,'error'); btn.disabled=false; return; }
-  await logHistorico(alunoId, 'parcela', `${id?'Parcela editada':'Parcela adicionada'}: nº ${row.numero}, ${formatCurrency(row.valor-row.desconto)}, venc. ${formatDate(row.vencimento)}`);
-  showToast(id?'Parcela atualizada!':'Parcela adicionada!','success');
-  closeModal(); openFichaAluno(alunoId, 'financeiro');
+  await logHistorico(alunoId, 'parcela',
+    `${id?'Lançamento editado':'Lançamento criado'}: nº ${row.numero}, ${formatCurrency(valor-desc)}, venc. ${formatDate(row.vencimento)}, ${status}`);
+  showToast(id?'Lançamento atualizado!':'Lançamento criado!','success');
+  closeModal(); openFichaAluno(alunoId, volta);
 }
 
-async function removerParcela(id) {
+// Guarda o registro inteiro antes de apagar. Se a tabela de lixeira
+// ainda não existir (SQL 06), avisa mas não impede a exclusão.
+async function registrarExclusao(tipo, nome, dados, motivo) {
+  const { error } = await db.from('exclusoes').insert({
+    tipo, nome, motivo: motivo || null, dados,
+    excluido_por: user?.id, excluido_por_nome: profile?.name || null,
+  });
+  if (error) { console.warn('lixeira indisponível:', error.message); return false; }
+  return true;
+}
+
+async function removerParcela(id, voltar) {
+  if (!can('excluir_registros')) { showToast('Você não tem permissão para excluir','error'); return; }
   const p = _D.parcelas?.[id]; if (!p) return;
-  if (!confirm(`Remover a parcela ${p.numero} (${formatCurrency(valorLiquido(p))})?`)) return;
+  const pago = p.status === 'pago';
+  if (!confirm(`Excluir o lançamento nº ${p.numero} (${formatCurrency(valorLiquido(p))})${pago ? ', que está marcado como PAGO' : ''}?\n\nEle sai da ficha do aluno, mas fica guardado na lixeira.`)) return;
+  const motivo = prompt('Motivo da exclusão (opcional — ajuda a entender depois):') || null;
+
+  const nomeAluno = _D.fichaAluno?.nome || p.alunos?.nome || '';
+  const salvo = await registrarExclusao('parcela', `${nomeAluno} — nº ${p.numero}`, p, motivo);
+
   const { error } = await db.from('parcelas').delete().eq('id', id);
   if (error) { showToast('Erro: '+error.message,'error'); return; }
-  await logHistorico(p.aluno_id, 'parcela', `Parcela nº ${p.numero} removida (${formatCurrency(valorLiquido(p))})`);
-  showToast('Parcela removida','success'); openFichaAluno(p.aluno_id, 'financeiro');
+  await logHistorico(p.aluno_id, 'parcela',
+    `Lançamento nº ${p.numero} excluído (${formatCurrency(valorLiquido(p))})${motivo ? ' — '+motivo : ''}`);
+  showToast(salvo ? 'Lançamento excluído (guardado na lixeira)' : 'Lançamento excluído — lixeira indisponível, rode o SQL 06', salvo?'success':'info');
+  closeModal();
+  openFichaAluno(p.aluno_id, voltar || _D.fichaTab || 'financeiro');
 }
 
 // ---- Pagar / desfazer ----

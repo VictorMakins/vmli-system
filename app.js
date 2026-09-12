@@ -2343,6 +2343,7 @@ async function openFichaAluno(id, tab) {
 
     <div class="tabs">
       ${can('pagamentos_ver') ? `<button class="tab-btn ${_D.fichaTab==='financeiro'?'active':''}" onclick="fichaTab('financeiro')">💰 Financeiro</button>` : ''}
+      ${can('pagamentos_ver') ? `<button class="tab-btn ${_D.fichaTab==='caixa'?'active':''}" onclick="fichaTab('caixa')">🧾 Caixa</button>` : ''}
       <button class="tab-btn ${_D.fichaTab==='dados'?'active':''}" onclick="fichaTab('dados')">👤 Dados</button>
       <button class="tab-btn ${_D.fichaTab==='turmas'?'active':''}" onclick="fichaTab('turmas')">📚 Turmas</button>
       <button class="tab-btn ${_D.fichaTab==='historico'?'active':''}" onclick="fichaTab('historico')">📋 Histórico</button>
@@ -2355,7 +2356,7 @@ async function openFichaAluno(id, tab) {
 function fichaTab(tab) {
   _D.fichaTab = tab;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.textContent.includes(
-    {financeiro:'Financeiro', dados:'Dados', turmas:'Turmas', historico:'Histórico', membros:'Área de Membros'}[tab])));
+    {financeiro:'Financeiro', caixa:'Caixa', dados:'Dados', turmas:'Turmas', historico:'Histórico', membros:'Área de Membros'}[tab])));
   const el = document.getElementById('ficha-body');
   if (!el) return;
   if (tab === 'membros') {
@@ -2364,7 +2365,7 @@ function fichaTab(tab) {
       .catch(err => { el.innerHTML = `<div class="alert alert-warning">Erro: ${err.message}<br><span class="text-muted">Você já rodou o SQL 03_area_membros.sql?</span></div>`; });
     return;
   }
-  el.innerHTML = { financeiro: fichaFinanceiroHTML, dados: fichaDadosHTML, turmas: fichaTurmasHTML, historico: fichaHistoricoHTML }[tab]();
+  el.innerHTML = { financeiro: fichaFinanceiroHTML, caixa: fichaCaixaHTML, dados: fichaDadosHTML, turmas: fichaTurmasHTML, historico: fichaHistoricoHTML }[tab]();
 }
 
 function fichaDadosHTML() {
@@ -2459,6 +2460,143 @@ function fichaFinanceiroHTML() {
         <table class="table">
           <thead><tr><th>#</th><th>Vencimento</th><th>Valor</th><th>Status</th><th>Pagamento</th><th>Obs</th><th>Ações</th></tr></thead>
           <tbody>${ps.map(p => parcelaRow(p, podeEd)).join('')}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+// ============================================================
+// 23-B. CAIXA — visão mês a mês (formato da planilha)
+// Financeiro = o plano (parcela 3 de 12). Caixa = o mês (o que
+// entrou, em que dia, por qual forma, referente a qual mês).
+// ============================================================
+
+// "2026-08-01" -> "Agosto/2026" | null -> ''
+function competenciaLabel(d) {
+  if (!d) return '';
+  const [ano, mes] = String(d).split('-');
+  return `${MONTHS[parseInt(mes,10)]}/${ano}`;
+}
+// "2026-08-01" -> "2026-08" (para o <input type="month">)
+function competenciaInput(d) { return d ? String(d).slice(0,7) : ''; }
+// "2026-08" -> "2026-08-01" (para gravar no banco)
+function competenciaValue(v) { return v ? `${v}-01` : null; }
+
+// Campo "Referente a" reaproveitado pelos modais
+function competenciaField(p, vencimentoFallback) {
+  const val = competenciaInput(p?.competencia) || competenciaInput(vencimentoFallback);
+  return `<div class="form-group">
+    <label>Referente a (mês)</label>
+    <input type="month" name="competencia" value="${val}">
+    <small class="text-muted">Mês a que o pagamento se refere — pode ser diferente do mês em que o dinheiro entrou.</small>
+  </div>`;
+}
+
+function caixaMes(ano, mes) {
+  _D.caixaYM = { ano, mes };
+  if (_D.fichaTab === 'caixa') fichaTab('caixa');
+}
+
+function fichaCaixaHTML() {
+  const a  = _D.fichaAluno;
+  const ps = (_D.fichaParcelas || []).filter(p => p.status !== 'cancelada');
+
+  if (!_D.caixaYM) { const c = getCurrentMonthYear(); _D.caixaYM = { ano:c.ano, mes:c.mes }; }
+  const { ano, mes } = _D.caixaYM;
+  const ini = monthStart(mes, ano), fim = monthEnd(mes, ano), hoje = todayISO();
+  const prev = addMonthsYM(ano, mes, -1), next = addMonthsYM(ano, mes, 1);
+  const podeEd = can('pagamentos_editar');
+
+  const noMes = d => d && d >= ini && d <= fim;
+
+  // Linhas do mês: o que FOI PAGO no mês + o que VENCE no mês (sem duplicar)
+  const linhas = ps.filter(p =>
+    (p.status === 'pago' && noMes(p.data_pagamento)) ||
+    (p.status !== 'pago' && noMes(p.vencimento))
+  ).sort((x, y) => {
+    const dx = x.status==='pago' ? x.data_pagamento : x.vencimento;
+    const dy = y.status==='pago' ? y.data_pagamento : y.vencimento;
+    return (dx||'').localeCompare(dy||'');
+  });
+
+  const recebido = linhas.filter(p => p.status==='pago')
+                         .reduce((s,p) => s + (Number(p.valor_pago) || valorLiquido(p)), 0);
+  const aReceber = linhas.filter(p => p.status!=='pago').reduce((s,p) => s + valorLiquido(p), 0);
+
+  // Atraso: todas as parcelas vencidas do aluno, de qualquer mês
+  const atrasadas = ps.filter(p => parcelaEstado(p) === 'atrasada');
+  const totAtraso = atrasadas.reduce((s,p) => s + valorLiquido(p), 0);
+
+  // Cobrar hoje: vence hoje ou já venceu (alerta acende no dia do vencimento)
+  const cobrarHoje = ps.filter(p => p.status === 'pendente' && p.vencimento <= hoje);
+  const proxima    = ps.filter(p => p.status === 'pendente' && p.vencimento > hoje)
+                       .sort((x,y) => x.vencimento.localeCompare(y.vencimento))[0];
+
+  const linhaHTML = p => {
+    const pago  = p.status === 'pago';
+    const data  = pago ? p.data_pagamento : p.vencimento;
+    const dia   = data ? String(data).slice(8,10) : '—';
+    const comp  = competenciaLabel(p.competencia);
+    const forma = pago ? formaLabel(p.forma_pagamento) : '<span class="text-muted">a definir</span>';
+    const valor = pago ? (Number(p.valor_pago) || valorLiquido(p)) : valorLiquido(p);
+    return `<tr class="row-${parcelaEstado(p)}">
+      <td><strong>${dia}</strong><span class="text-muted"> ${MONTHS[mes].slice(0,3).toLowerCase()}</span></td>
+      <td><strong>${formatCurrency(valor)}</strong></td>
+      <td>${forma}</td>
+      <td>${comp ? comp : `<span class="text-muted" title="Sem competência definida">—</span>`}</td>
+      <td>${parcelaBadge(p)} <span class="text-muted">#${p.numero}</span></td>
+      <td><div class="action-btns">
+        ${podeEd && p.status==='pendente' ? `<button class="btn btn-sm btn-success" onclick="openModalPagar('${p.id}','caixa')">💵 Receber</button>` : ''}
+        ${podeEd && pago ? `<button class="btn btn-sm btn-secondary" onclick="openModalPagar('${p.id}','caixa')">✏️</button>` : ''}
+      </div></td>
+    </tr>`;
+  };
+
+  return `
+    <div class="page-header" style="margin-top:4px">
+      <h3 style="margin:0">🧾 Caixa do aluno</h3>
+      <div class="month-nav">
+        <button class="btn btn-sm btn-secondary" onclick="caixaMes(${prev.ano},${prev.mes})">‹</button>
+        <strong>${MONTHS[mes]} ${ano}</strong>
+        <button class="btn btn-sm btn-secondary" onclick="caixaMes(${next.ano},${next.mes})">›</button>
+      </div>
+    </div>
+
+    ${cobrarHoje.length ? `<div class="alert alert-warning">
+      🔔 <strong>Hora de cobrar</strong> — ${cobrarHoje.length} parcela(s) em aberto, ${formatCurrency(cobrarHoje.reduce((s,p)=>s+valorLiquido(p),0))}.
+      ${cobrarHoje.map(p => `Nº ${p.numero} venc. ${formatDate(p.vencimento)}`).join(' • ')}
+      ${waBtn(a.telefone, msgCobranca(a, cobrarHoje), 'Cobrar no WhatsApp')}
+    </div>` : proxima ? `<div class="alert alert-info">
+      📅 Próximo vencimento: <strong>${formatDate(proxima.vencimento)}</strong> — ${formatCurrency(valorLiquido(proxima))} (parcela nº ${proxima.numero}).
+      O aviso de cobrança acende no dia do vencimento.
+    </div>` : ''}
+
+    <div class="stats-grid" style="margin-bottom:16px">
+      ${statCard('✅', formatCurrency(recebido),  `Recebido em ${MONTHS[mes]}`)}
+      ${statCard('⏳', formatCurrency(aReceber),  `A receber em ${MONTHS[mes]}`)}
+      ${statCard('⚠️', formatCurrency(totAtraso), `Em atraso (${atrasadas.length} parcela${atrasadas.length===1?'':'s'})`)}
+      ${statCard('📅', proxima ? formatDate(proxima.vencimento) : '—', 'Próximo vencimento')}
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h3>Movimento de ${MONTHS[mes]} ${ano}</h3>
+        <div class="action-btns">
+          ${podeEd ? `<button class="btn btn-sm btn-secondary" onclick="openModalParcela('${a.id}',null)">+ Lançamento</button>` : ''}
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table class="table">
+          <thead><tr><th>Dia</th><th>Valor</th><th>Forma</th><th>Referente a</th><th>Situação</th><th>Ações</th></tr></thead>
+          <tbody>
+            ${linhas.length ? linhas.map(linhaHTML).join('')
+              : `<tr><td colspan="6" class="empty-state">Nenhum movimento em ${MONTHS[mes]} ${ano}.</td></tr>`}
+          </tbody>
+          ${linhas.length ? `<tfoot><tr>
+            <td><strong>TOTAL</strong></td>
+            <td colspan="5"><strong>${formatCurrency(recebido)}</strong> recebido
+              ${aReceber ? ` <span class="text-muted">• ${formatCurrency(aReceber)} a receber</span>` : ''}</td>
+          </tr></tfoot>` : ''}
         </table>
       </div>
     </div>`;
@@ -2587,7 +2725,10 @@ function openModalParcela(alunoId, parcelaId) {
         <div class="form-group"><label>Valor (R$) *</label><input type="number" step="0.01" min="0" name="valor" value="${p?.valor??''}" required></div>
         <div class="form-group"><label>Desconto (R$)</label><input type="number" step="0.01" min="0" name="desconto" value="${p?.desconto||0}"></div>
       </div>
-      <div class="form-group"><label>Observação</label><input type="text" name="obs" value="${esc(p?.obs)}" placeholder="ex: taxa de material, ajuste…"></div>
+      <div class="form-row">
+        ${competenciaField(p, p?.vencimento || todayISO())}
+        <div class="form-group"><label>Observação</label><input type="text" name="obs" value="${esc(p?.obs)}" placeholder="ex: taxa de material, ajuste…"></div>
+      </div>
       <input type="hidden" name="id" value="${p?.id||''}"><input type="hidden" name="aluno_id" value="${alunoId}">
       <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
         <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
@@ -2601,10 +2742,17 @@ async function saveParcela(e) {
   const fd = new FormData(e.target);
   const id = fd.get('id'), alunoId = fd.get('aluno_id');
   const row = { numero: parseInt(fd.get('numero')), vencimento: fd.get('vencimento'), valor: parseFloat(fd.get('valor')||0),
-                desconto: parseFloat(fd.get('desconto')||0), obs: fd.get('obs').trim()||null };
+                desconto: parseFloat(fd.get('desconto')||0), obs: fd.get('obs').trim()||null,
+                competencia: competenciaValue(fd.get('competencia')) };
   const btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
-  const { error } = id ? await db.from('parcelas').update(row).eq('id', id)
-                       : await db.from('parcelas').insert({ ...row, aluno_id: alunoId, status:'pendente' });
+  const grava = r => id ? db.from('parcelas').update(r).eq('id', id)
+                        : db.from('parcelas').insert({ ...r, aluno_id: alunoId, status:'pendente' });
+  let { error } = await grava(row);
+  if (error && /competencia/i.test(error.message||'')) {           // SQL 04 ainda não rodado
+    showToast('Salvo sem o "Referente a" — rode o SQL 04_caixa_competencia.sql','info');
+    delete row.competencia;
+    ({ error } = await grava(row));
+  }
   if (error) { showToast('Erro: '+error.message,'error'); btn.disabled=false; return; }
   await logHistorico(alunoId, 'parcela', `${id?'Parcela editada':'Parcela adicionada'}: nº ${row.numero}, ${formatCurrency(row.valor-row.desconto)}, venc. ${formatDate(row.vencimento)}`);
   showToast(id?'Parcela atualizada!':'Parcela adicionada!','success');
@@ -2637,8 +2785,9 @@ function openModalPagar(id, voltar='ficha') {
       </div>
       <div class="form-row">
         <div class="form-group"><label>Valor recebido (R$) *</label><input type="number" step="0.01" min="0" name="valor_pago" value="${valorLiquido(p).toFixed(2)}" required></div>
-        <div class="form-group"><label>Observação</label><input type="text" name="obs" value="${esc(p.obs)}"></div>
+        ${competenciaField(p, p.vencimento)}
       </div>
+      <div class="form-group"><label>Observação</label><input type="text" name="obs" value="${esc(p.obs)}"></div>
       <input type="hidden" name="id" value="${p.id}"><input type="hidden" name="voltar" value="${voltar}">
       <div class="modal-footer" style="padding:0;margin-top:20px;border:none">
         <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
@@ -2652,14 +2801,22 @@ async function savePagamento(e) {
   const fd = new FormData(e.target);
   const p  = _D.parcelas?.[fd.get('id')];
   const row = { status:'pago', data_pagamento: fd.get('data_pagamento'), forma_pagamento: fd.get('forma_pagamento'),
-                valor_pago: parseFloat(fd.get('valor_pago')||0), obs: fd.get('obs').trim()||null, pago_por: user.id };
+                valor_pago: parseFloat(fd.get('valor_pago')||0), obs: fd.get('obs').trim()||null, pago_por: user.id,
+                competencia: competenciaValue(fd.get('competencia')) };
   const btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
-  const { error } = await db.from('parcelas').update(row).eq('id', p.id);
+  let { error } = await db.from('parcelas').update(row).eq('id', p.id);
+  if (error && /competencia/i.test(error.message||'')) {           // SQL 04 ainda não rodado
+    showToast('Salvo sem o "Referente a" — rode o SQL 04_caixa_competencia.sql','info');
+    delete row.competencia;
+    ({ error } = await db.from('parcelas').update(row).eq('id', p.id));
+  }
   if (error) { showToast('Erro: '+error.message,'error'); btn.disabled=false; return; }
   await logHistorico(p.aluno_id, 'pagamento', `Parcela nº ${p.numero} paga — ${formatCurrency(row.valor_pago)} via ${formaLabel(row.forma_pagamento)} em ${formatDate(row.data_pagamento)}`);
   showToast('Pagamento registrado! ✅','success');
   closeModal();
-  if (fd.get('voltar')==='cobrancas') renderCobrancas(); else openFichaAluno(p.aluno_id, 'financeiro');
+  const volta = fd.get('voltar');
+  if (volta==='cobrancas') renderCobrancas();
+  else openFichaAluno(p.aluno_id, volta==='caixa' ? 'caixa' : 'financeiro');
 }
 
 async function desfazerPagamento(id) {

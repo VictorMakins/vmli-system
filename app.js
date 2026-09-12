@@ -2107,6 +2107,7 @@ async function renderAlunos() {
 
   const ativos    = alunos?.filter(a=>(a.status||'ativo')==='ativo').length||0;
   const trancados = alunos?.filter(a=>a.status==='trancado').length||0;
+  const cancelados= alunos?.filter(a=>a.status==='cancelado').length||0;
   const emAtraso  = alunos?.filter(a=>a._atrasadas>0 && (a.status||'ativo')==='ativo').length||0;
 
   function finBadge(a) {
@@ -2124,9 +2125,10 @@ async function renderAlunos() {
       ${can('alunos_editar') ? '<button class="btn btn-primary" onclick="openModalAluno(null)">+ Novo Aluno</button>' : ''}
     </div>
     <div class="stats-grid" style="margin-bottom:18px">
-      ${statCard('🎓', ativos, 'Alunos ativos')}
-      ${statCard('⏸️', trancados, 'Trancados')}
+      ${statCard('🎓', ativos, 'Alunos ativos', "filtrarAlunos('ativo')")}
+      ${statCard('⏸️', trancados, 'Trancados', "filtrarAlunos('trancado')")}
       ${can('pagamentos_ver') ? statCard('⚠️', emAtraso, 'Com parcela atrasada', "filtrarAlunos('atraso')") : ''}
+      ${statCard('✕', cancelados, 'Cancelados (ex-alunos)', "filtrarAlunos('cancelado')")}
     </div>
     <div class="card">
       <div class="card-body" style="padding-bottom:0">
@@ -3063,6 +3065,45 @@ function openModalCancelar(alunoId) {
       </div>
     </form>`);
 }
+// Nome do funil para onde vão os alunos cancelados (criado pelo SQL 08).
+const FUNIL_RECUPERACAO = 'recuperação de ex-alunos';
+
+// Joga o aluno cancelado no CRM, já na etapa "Cancelado".
+// Se o funil ainda não existir, apenas avisa — o cancelamento não trava.
+async function enviarParaRecuperacao(aluno, motivo) {
+  try {
+    const { data: funis } = await db.from('funis').select('id,nome,funil_etapas(id,nome,ordem)');
+    const f = (funis||[]).find(x => (x.nome||'').toLowerCase() === FUNIL_RECUPERACAO);
+    if (!f) { showToast('Funil de recuperação não encontrado — rode o SQL 08','info'); return; }
+
+    const etapas = (f.funil_etapas||[]).sort((a,b)=>a.ordem-b.ordem);
+    const etapa  = etapas.find(e => (e.nome||'').toLowerCase()==='cancelado') || etapas[0];
+    if (!etapa) { showToast('O funil de recuperação está sem etapas','info'); return; }
+
+    // não duplica se o aluno já estiver lá
+    const { data: jaTem } = await db.from('leads').select('id').eq('aluno_id', aluno.id).eq('funil_id', f.id).limit(1);
+    if (jaTem?.length) {
+      await db.from('leads').update({ etapa_id: etapa.id }).eq('id', jaTem[0].id);
+      return;
+    }
+
+    const { data: lead, error } = await db.from('leads').insert({
+      nome: aluno.nome, telefone: aluno.telefone, email: aluno.email, idioma: aluno.idioma,
+      origem: 'Ex-aluno', funil_id: f.id, etapa_id: etapa.id, aluno_id: aluno.id,
+      observacoes: `Cancelou a matrícula em ${formatDate(todayISO())}${motivo ? ' — '+motivo : ''}`,
+      created_by: user?.id,
+    }).select().single();
+    if (error) throw error;
+
+    await db.from('lead_notas').insert({ lead_id: lead.id, user_id: user?.id,
+      texto: `Matrícula cancelada${motivo ? ': '+motivo : ''}. Entrou na fila de recuperação.` });
+    showToast('Aluno enviado para o funil de recuperação 🎯','success');
+  } catch (err) {
+    console.warn('recuperação:', err.message);
+    showToast('Não consegui criar o lead no CRM: '+err.message,'info');
+  }
+}
+
 async function saveCancelar(e) {
   e.preventDefault();
   const fd = new FormData(e.target); const alunoId = fd.get('aluno_id'); const motivo = fd.get('motivo').trim();
@@ -3071,6 +3112,10 @@ async function saveCancelar(e) {
   if (error) { showToast('Erro: '+error.message,'error'); btn.disabled=false; return; }
   await db.from('parcelas').update({ status:'cancelada' }).eq('aluno_id', alunoId).in('status',['pendente','suspensa']);
   await logHistorico(alunoId, 'cancelamento', `Matrícula cancelada${motivo?': '+motivo:''}`);
+
+  const aluno = _D.alunos?.[alunoId] || _D.fichaAluno;
+  if (aluno && can('crm_editar')) await enviarParaRecuperacao(aluno, motivo);
+
   showToast('Matrícula cancelada','success'); closeModal(); openFichaAluno(alunoId,'financeiro');
 }
 

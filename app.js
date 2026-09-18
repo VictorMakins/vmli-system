@@ -2109,6 +2109,7 @@ async function renderAlunos() {
   const trancados = alunos?.filter(a=>a.status==='trancado').length||0;
   const cancelados= alunos?.filter(a=>a.status==='cancelado').length||0;
   const emAtraso  = alunos?.filter(a=>a._atrasadas>0 && (a.status||'ativo')==='ativo').length||0;
+  const alunosAtivos = (alunos || []).filter(a => (a.status || 'ativo') === 'ativo');
 
   function finBadge(a) {
     if (!can('pagamentos_ver')) return '—';
@@ -2129,6 +2130,19 @@ async function renderAlunos() {
       ${statCard('⏸️', trancados, 'Trancados', "filtrarAlunos('trancado')")}
       ${can('pagamentos_ver') ? statCard('⚠️', emAtraso, 'Com parcela atrasada', "filtrarAlunos('atraso')") : ''}
       ${statCard('✕', cancelados, 'Cancelados (ex-alunos)', "filtrarAlunos('cancelado')")}
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="student-count-wrap">
+          <h3>Lista de alunos ativos</h3>
+          <span class="student-count-badge">${alunosAtivos.length} aluno${alunosAtivos.length === 1 ? '' : 's'}</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="student-pill-list">
+          ${alunosAtivos.length ? alunosAtivos.map(a => `<span class="student-pill">${esc(a.nome)}</span>`).join('') : '<p class="empty-state">Nenhum aluno ativo no momento.</p>'}
+        </div>
+      </div>
     </div>
     <div class="card">
       <div class="card-body" style="padding-bottom:0">
@@ -4120,6 +4134,23 @@ async function renderMembros() {
       ${podeEd ? '<button class="btn btn-primary" onclick="openModalPainel(null)">+ Novo painel</button>' : ''}
     </div>
     ${isAluno() ? '<p class="text-muted" style="margin:-6px 0 16px">Seus materiais, aulas extras e conteúdos liberados pela escola.</p>' : ''}
+    <div class="card video-playlist-card">
+      <div class="card-header">
+        <h3>Vídeos de apoio</h3>
+        <a class="btn btn-sm btn-secondary" href="https://www.youtube.com/playlist?list=PL50aw78Et9Ng0VFh0Xr54X_7jbP8PlrGh" target="_blank" rel="noopener">Abrir playlist</a>
+      </div>
+      <div class="card-body">
+        <div class="video-embed-wrap">
+          <iframe
+            src="https://www.youtube.com/embed/videoseries?list=PL50aw78Et9Ng0VFh0Xr54X_7jbP8PlrGh"
+            title="Playlist de vídeos da VMLI"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            referrerpolicy="strict-origin-when-cross-origin"
+            allowfullscreen>
+          </iframe>
+        </div>
+      </div>
+    </div>
     ${lista.length ? `<div class="paineis-grid">
       ${lista.map((p,i) => `
         <div class="painel-card ${p.ativo?'':'inativo'}" onclick="openPainel('${p.id}')">

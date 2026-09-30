@@ -22,20 +22,80 @@
         </div>
         <div class="login-tagline">Sistema de Gestão</div>
       </div>
-      <form id="login-form">
-        <div class="form-group">
-          <label for="login-email">Email</label>
-          <input type="email" id="login-email" placeholder="seu@email.com" required autocomplete="email">
+      <section class="auth-view" id="login-view">
+        <form id="login-form">
+          <div class="form-group">
+            <label for="login-email">Email</label>
+            <input type="email" id="login-email" placeholder="seu@email.com" required autocomplete="email">
+          </div>
+          <div class="form-group">
+            <label for="login-password">Senha</label>
+            <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password">
+          </div>
+          <div class="form-group" style="margin-bottom: 8px; margin-top: 6px;">
+            <button type="submit" class="btn btn-primary btn-full" id="login-btn">Entrar</button>
+          </div>
+        </form>
+        <div class="auth-links" id="login-links">
+          <button type="button" class="btn-link" id="forgot-btn">Esqueci minha senha</button>
+          <button type="button" class="btn-link auth-register-link" id="show-register-btn">Criar conta de aluno</button>
         </div>
-        <div class="form-group">
-          <label for="login-password">Senha</label>
-          <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password">
-        </div>
-        <div class="form-group" style="margin-bottom: 8px; margin-top: 6px;">
-          <button type="submit" class="btn btn-primary btn-full" id="login-btn">Entrar</button>
-        </div>
-        <button type="button" class="btn-link" id="forgot-btn">Esqueci minha senha</button>
-      </form>
+      </section>
+
+      <section class="auth-view" id="register-view" hidden>
+        <h2 class="auth-title">Criar conta</h2>
+        <p class="auth-copy">Cadastre-se para acessar sua conta de aluno.</p>
+        <form id="register-form" class="auth-form">
+          <div class="form-group">
+            <label for="register-name">Nome completo</label>
+            <input type="text" id="register-name" required autocomplete="name">
+          </div>
+          <div class="form-group">
+            <label for="register-email">Email</label>
+            <input type="email" id="register-email" required autocomplete="email">
+          </div>
+          <div class="form-group">
+            <label for="register-password">Senha</label>
+            <input type="password" id="register-password" required minlength="8" autocomplete="new-password">
+          </div>
+          <div class="form-group">
+            <label for="register-password-confirm">Confirme a senha</label>
+            <input type="password" id="register-password-confirm" required minlength="8" autocomplete="new-password">
+          </div>
+          <button type="submit" class="btn btn-primary btn-full" id="register-btn">Criar conta</button>
+          <button type="button" class="btn-link" id="register-back-btn">Voltar ao login</button>
+        </form>
+      </section>
+
+      <section class="auth-view" id="recovery-view" hidden>
+        <h2 class="auth-title">Recuperar acesso</h2>
+        <p class="auth-copy">Informe o email cadastrado. Enviaremos um link para redefinir sua senha.</p>
+        <form id="forgot-form" class="auth-form">
+          <div class="form-group">
+            <label for="recovery-email">Email cadastrado</label>
+            <input type="email" id="recovery-email" required autocomplete="email">
+          </div>
+          <button type="submit" class="btn btn-primary btn-full" id="reset-btn">Enviar link de recuperação</button>
+          <button type="button" class="btn-link" id="recovery-back-btn">Voltar ao login</button>
+        </form>
+        <p class="auth-help">Perdeu acesso ao email ou não lembra qual cadastrou? Fale com a secretaria da VMLI para confirmar seus dados e recuperar a conta.</p>
+      </section>
+
+      <section class="auth-view" id="password-update-view" hidden>
+        <h2 class="auth-title">Definir nova senha</h2>
+        <p class="auth-copy">Escolha uma nova senha para sua conta.</p>
+        <form id="update-password-form" class="auth-form">
+          <div class="form-group">
+            <label for="new-password">Nova senha</label>
+            <input type="password" id="new-password" required minlength="8" autocomplete="new-password">
+          </div>
+          <div class="form-group">
+            <label for="new-password-confirm">Confirme a nova senha</label>
+            <input type="password" id="new-password-confirm" required minlength="8" autocomplete="new-password">
+          </div>
+          <button type="submit" class="btn btn-primary btn-full" id="update-password-btn">Salvar nova senha</button>
+        </form>
+      </section>
     </div>
   </div>
 

@@ -15,6 +15,7 @@ const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 // ============================================================
 let user    = null;   // auth user
 let profile = null;   // profile row
+let passwordRecoveryPending = new URLSearchParams(window.location.hash.slice(1)).get('type') === 'recovery';
 let activeTab = '';
 const _D = {};        // cache de dados para modais
 
@@ -83,20 +84,29 @@ function navAllowed(id) {
 // 3. INIT
 // ============================================================
 document.addEventListener('DOMContentLoaded', async () => {
-  const { data: { session } } = await db.auth.getSession();
-  if (session?.user) {
-    await loadProfile(session.user);
-    if (profile) showApp(); else showLogin();
-  } else {
-    showLogin();
-  }
-
   db.auth.onAuthStateChange((event) => {
-    if (event === 'SIGNED_OUT') { user = null; profile = null; showLogin(); }
+    if (event === 'PASSWORD_RECOVERY') {
+      passwordRecoveryPending = true;
+      showAuthView('password-update');
+    } else if (event === 'SIGNED_OUT') {
+      user = null; profile = null; showLogin();
+    }
   });
 
   document.getElementById('login-form').addEventListener('submit', handleLogin);
-  document.getElementById('forgot-btn').addEventListener('click', handleForgotPassword);
+  document.getElementById('forgot-btn').addEventListener('click', () => {
+    document.getElementById('recovery-email').value = document.getElementById('login-email').value.trim();
+    showAuthView('recovery');
+  });
+  document.getElementById('show-register-btn').addEventListener('click', () => showAuthView('register'));
+  document.getElementById('register-back-btn').addEventListener('click', () => showAuthView('login'));
+  document.getElementById('recovery-back-btn').addEventListener('click', () => {
+    document.getElementById('login-email').value = document.getElementById('recovery-email').value.trim();
+    showAuthView('login');
+  });
+  document.getElementById('register-form').addEventListener('submit', handleRegister);
+  document.getElementById('forgot-form').addEventListener('submit', handleForgotPassword);
+  document.getElementById('update-password-form').addEventListener('submit', handleUpdatePassword);
   document.getElementById('logout-btn').addEventListener('click', handleLogout);
   document.getElementById('menu-btn').addEventListener('click', toggleSidebar);
   document.getElementById('sidebar-close').addEventListener('click', closeSidebar);
@@ -104,6 +114,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('modal-overlay').addEventListener('click', (e) => {
     if (e.target.id === 'modal-overlay') closeModal();
   });
+
+  const { data: { session } } = await db.auth.getSession();
+  if (passwordRecoveryPending) {
+    showLogin();
+    showAuthView('password-update');
+  } else if (session?.user) {
+    await loadProfile(session.user);
+    if (profile) showApp(); else showLogin();
+  } else {
+    showLogin();
+  }
 });
 
 async function loadProfile(authUser) {
@@ -118,8 +139,15 @@ async function loadProfile(authUser) {
 function showLogin() {
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('app').style.display = 'none';
+  showAuthView('login');
   document.getElementById('login-btn').textContent = 'Entrar';
   document.getElementById('login-btn').disabled = false;
+}
+
+function showAuthView(view) {
+  document.querySelectorAll('.auth-view').forEach((element) => {
+    element.hidden = element.id !== `${view}-view`;
+  });
 }
 
 function showApp() {
@@ -164,14 +192,107 @@ async function handleLogout() {
   await db.auth.signOut();
 }
 
-async function handleForgotPassword() {
-  const email = document.getElementById('login-email').value.trim();
-  if (!email) { showToast('Digite seu email primeiro', 'error'); return; }
-  const { error } = await db.auth.resetPasswordForEmail(email, {
-    redirectTo: window.location.href
-  });
-  if (error) showToast('Erro ao enviar email', 'error');
-  else showToast('Email de recuperação enviado!', 'success');
+async function handleRegister(e) {
+  e.preventDefault();
+  const name = document.getElementById('register-name').value.trim();
+  const email = document.getElementById('register-email').value.trim();
+  const password = document.getElementById('register-password').value;
+  const confirmation = document.getElementById('register-password-confirm').value;
+  const button = document.getElementById('register-btn');
+
+  if (password.length < 8) { showToast('A senha deve ter pelo menos 8 caracteres', 'error'); return; }
+  if (password !== confirmation) { showToast('As senhas não conferem', 'error'); return; }
+
+  button.disabled = true;
+  button.textContent = 'Criando conta…';
+  try {
+    const { data, error } = await db.auth.signUp({
+      email,
+      password,
+      options: { data: { name } }
+    });
+    if (error) throw error;
+    if (data.user?.identities?.length === 0) {
+      showToast('Não foi possível criar a conta. Verifique o email informado ou tente entrar.', 'error');
+      return;
+    }
+
+    if (data.session) {
+      await loadProfile(data.user);
+      if (!profile) {
+        await db.auth.signOut();
+        showLogin();
+        showToast('Conta criada, mas não foi possível preparar o perfil. Procure a secretaria da VMLI.', 'error');
+        return;
+      }
+      showApp();
+      showToast('Conta criada com sucesso!', 'success');
+    } else {
+      document.getElementById('login-email').value = email;
+      showAuthView('login');
+      showToast('Cadastro iniciado. Confira seu email para confirmar a conta.', 'success');
+    }
+  } catch (error) {
+    const message = /already|registered/i.test(error.message)
+      ? 'Este email já possui uma conta. Tente entrar ou recuperar a senha.'
+      : 'Não foi possível criar a conta. Confira os dados e tente novamente.';
+    showToast(message, 'error');
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Criar conta';
+  }
+}
+
+async function handleForgotPassword(e) {
+  e.preventDefault();
+  const email = document.getElementById('recovery-email').value.trim();
+  const button = document.getElementById('reset-btn');
+  button.disabled = true;
+  button.textContent = 'Enviando…';
+  try {
+    const { error } = await db.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}${window.location.pathname}`
+    });
+    if (error) throw error;
+    showToast('Se este email estiver cadastrado, você receberá um link de recuperação.', 'success');
+  } catch {
+    showToast('Não foi possível enviar o link. Tente novamente mais tarde.', 'error');
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Enviar link de recuperação';
+  }
+}
+
+async function handleUpdatePassword(e) {
+  e.preventDefault();
+  const password = document.getElementById('new-password').value;
+  const confirmation = document.getElementById('new-password-confirm').value;
+  const button = document.getElementById('update-password-btn');
+  if (password.length < 8) { showToast('A senha deve ter pelo menos 8 caracteres', 'error'); return; }
+  if (password !== confirmation) { showToast('As senhas não conferem', 'error'); return; }
+
+  button.disabled = true;
+  button.textContent = 'Salvando…';
+  try {
+    const { data, error } = await db.auth.updateUser({ password });
+    if (error) throw error;
+
+    passwordRecoveryPending = false;
+    await loadProfile(data.user);
+    if (profile) {
+      showApp();
+      showToast('Senha atualizada com sucesso!', 'success');
+    } else {
+      await db.auth.signOut();
+      showLogin();
+      showToast('Senha atualizada. Procure a secretaria para recuperar o acesso ao perfil.', 'error');
+    }
+  } catch {
+    showToast('O link expirou ou não é válido. Solicite uma nova recuperação.', 'error');
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Salvar nova senha';
+  }
 }
 
 // ============================================================
@@ -4115,25 +4236,32 @@ async function renderMembros() {
   if (!isAluno() && !can('membros_ver')) return semPermissao();
   const podeEd = can('membros_editar');
   const [{ data: paineis, error }, { data: prog }] = await Promise.all([
-    db.from('paineis').select('*, painel_modulos(id, painel_aulas(id)), painel_acessos(id)').order('ordem').order('titulo'),
+    db.from('paineis').select('*, painel_modulos(id, painel_aulas(id, categoria)), painel_acessos(id)').order('ordem').order('titulo'),
     db.from('aula_progresso').select('aula_id').eq('profile_id', user.id).eq('concluida', true),
   ]);
-  if (error) { setContent(`<div class="alert alert-warning">Erro: ${error.message}<br><span class="text-muted">Você já rodou o SQL <strong>03_area_membros.sql</strong>?</span></div>`); return; }
+  if (error) { setContent(`<div class="alert alert-warning">Erro: ${error.message}<br><span class="text-muted">Confira se os scripts <strong>03_area_membros.sql</strong> e <strong>05_area_aluno.sql</strong> foram executados.</span></div>`); return; }
   const feitas = new Set((prog||[]).map(p=>p.aula_id));
   _D.paineis = {}; (paineis||[]).forEach(p => {
     p._aulas = (p.painel_modulos||[]).flatMap(m => m.painel_aulas||[]);
     p._feitas = p._aulas.filter(a => feitas.has(a.id)).length;
     p._pct = p._aulas.length ? Math.round(p._feitas/p._aulas.length*100) : 0;
+    p._materiais = p._aulas.filter(a => a.categoria !== 'exercicio').length;
+    p._exercicios = p._aulas.filter(a => a.categoria === 'exercicio').length;
     _D.paineis[p.id] = p;
   });
   const lista = paineis||[];
+  const totalMateriais = lista.reduce((total,p) => total + p._materiais, 0);
+  const totalExercicios = lista.reduce((total,p) => total + p._exercicios, 0);
 
   setContent(`
     <div class="page-header">
       <h2>${isAluno() ? `Olá, ${esc(profile?.name?.split(' ')[0])}! 👋` : 'Área de Membros 🎬'}</h2>
       ${podeEd ? '<button class="btn btn-primary" onclick="openModalPainel(null)">+ Novo painel</button>' : ''}
     </div>
-    ${isAluno() ? '<p class="text-muted" style="margin:-6px 0 16px">Seus materiais, aulas extras e conteúdos liberados pela escola.</p>' : ''}
+    ${isAluno() ? `<section class="student-library-overview">
+      <p>Materiais de apoio e exercícios liberados pela escola, organizados para acompanhar seu aprendizado.</p>
+      <div class="student-library-stats"><span><strong>${totalMateriais}</strong> ${totalMateriais===1?'material':'materiais'}</span><span><strong>${totalExercicios}</strong> ${totalExercicios===1?'exercício':'exercícios'}</span></div>
+    </section>` : ''}
     <div class="card video-playlist-card">
       <div class="card-header">
         <h3>Vídeos de apoio</h3>
@@ -4159,7 +4287,7 @@ async function renderMembros() {
             <div class="painel-titulo">${esc(p.titulo)}</div>
             ${p.descricao ? `<div class="painel-desc">${esc(p.descricao)}</div>` : ''}
             <div class="painel-meta">
-              <span>${p._aulas.length} aula${p._aulas.length===1?'':'s'}</span>
+              ${isAluno() ? `<span>${p._materiais} material${p._materiais===1?'':'is'}</span><span>${p._exercicios} exercício${p._exercicios===1?'':'s'}</span>` : `<span>${p._aulas.length} aula${p._aulas.length===1?'':'s'}</span>`}
               ${!isAluno() ? `<span>• ${p.liberado_todos ? 'todos os alunos' : (p.painel_acessos||[]).length+' aluno(s)'}</span>` : ''}
               ${!p.ativo ? '<span class="badge badge-gray">Inativo</span>' : ''}
             </div>
@@ -4173,7 +4301,7 @@ async function renderMembros() {
           </div>
         </div>`).join('')}
     </div>`
-    : `<div class="card"><div class="card-body"><p class="empty-state">${isAluno() ? 'Nenhum conteúdo liberado para você ainda. Fale com a escola 😊' : 'Nenhum painel criado. Clique em "+ Novo painel".'}</p></div></div>`}`);
+    : `<div class="card"><div class="card-body"><p class="empty-state">${isAluno() ? 'Ainda não há conteúdo liberado. Se você já é aluno, fale com a secretaria para vincular seu cadastro e liberar seus materiais.' : 'Nenhum painel criado. Clique em "+ Novo painel".'}</p></div></div>`}`);
 }
 
 async function moverPainel(id, dir) {
@@ -4212,7 +4340,7 @@ async function openPainel(id, aulaId) {
       <div style="flex:1">
         <h2 style="margin:0 0 4px">${esc(p.titulo)} ${!p.ativo?'<span class="badge badge-gray">Inativo</span>':''}</h2>
         ${p.descricao ? `<div class="text-muted">${esc(p.descricao)}</div>` : ''}
-        <div class="text-muted" style="font-size:0.85rem;margin-top:6px">${todas.length} aula(s) • ${todas.filter(a=>_D.feitas.has(a.id)).length} concluída(s)</div>
+        <div class="member-category-totals"><span>${todas.filter(a=>a.categoria!=='exercicio').length} ${todas.filter(a=>a.categoria!=='exercicio').length===1?'material':'materiais'}</span><span>${todas.filter(a=>a.categoria==='exercicio').length} ${todas.filter(a=>a.categoria==='exercicio').length===1?'exercício':'exercícios'}</span><span>${todas.filter(a=>_D.feitas.has(a.id)).length}/${todas.length} concluídos</span></div>
       </div>
       ${podeEd ? `<div class="ficha-actions">
         <button class="btn btn-sm ${_D.modoEdicao?'btn-warning':'btn-secondary'}" onclick="_D.modoEdicao=!_D.modoEdicao;openPainel('${p.id}',_D.aulaAtual)">${_D.modoEdicao?'✅ Sair da edição':'✏️ Editar conteúdo'}</button>
@@ -4244,16 +4372,25 @@ function painelMenuHTML() {
         </div>
         ${m.descricao ? `<div class="modulo-desc">${esc(m.descricao)}</div>` : ''}
         <div class="aulas-list">
-          ${m.painel_aulas.map((a,ai) => `
-            <div class="aula-item ${a.id===_D.aulaAtual?'active':''} ${_D.feitas.has(a.id)?'feita':''}" onclick="abrirAula('${a.id}')">
-              <span class="aula-check">${_D.feitas.has(a.id)?'✓':aulaIcon(a)}</span>
-              <span class="aula-titulo">${esc(a.titulo)}</span>
-              ${ed ? `<span class="action-btns" onclick="event.stopPropagation()">
-                <button class="btn-icon" onclick="openModalAula('${m.id}','${a.id}')">✏️</button>
-                <button class="btn-icon" ${ai===0?'disabled':''} onclick="moverAula('${a.id}',-1)">▲</button>
-                <button class="btn-icon" ${ai===m.painel_aulas.length-1?'disabled':''} onclick="moverAula('${a.id}',1)">▼</button>
-              </span>` : ''}
-            </div>`).join('') || `<div class="text-muted" style="padding:6px 12px;font-size:0.82rem">${ed?'Sem aulas — clique em ＋':'Em breve'}</div>`}
+          ${m.painel_aulas.length ? ['material','exercicio'].map(categoria => {
+            const itens = m.painel_aulas.filter(a => (a.categoria||'material')===categoria);
+            if (!itens.length) return '';
+            return `<div class="aulas-group">
+              <div class="aulas-group-title">${categoria==='exercicio'?'Exercícios':'Materiais'}</div>
+              ${itens.map(a => {
+                const ai = m.painel_aulas.indexOf(a);
+                return `<div class="aula-item ${a.id===_D.aulaAtual?'active':''} ${_D.feitas.has(a.id)?'feita':''}" onclick="abrirAula('${a.id}')">
+                  <span class="aula-check">${_D.feitas.has(a.id)?'✓':aulaIcon(a)}</span>
+                  <span class="aula-titulo">${esc(a.titulo)}</span>
+                  ${ed ? `<span class="action-btns" onclick="event.stopPropagation()">
+                    <button class="btn-icon" title="Editar item" onclick="openModalAula('${m.id}','${a.id}')">✏️</button>
+                    <button class="btn-icon" title="Mover para cima" ${ai===0?'disabled':''} onclick="moverAula('${a.id}',-1)">▲</button>
+                    <button class="btn-icon" title="Mover para baixo" ${ai===m.painel_aulas.length-1?'disabled':''} onclick="moverAula('${a.id}',1)">▼</button>
+                  </span>` : ''}
+                </div>`;
+              }).join('')}
+            </div>`;
+          }).join('') : `<div class="text-muted" style="padding:6px 12px;font-size:0.82rem">${ed?'Sem materiais ou exercícios — clique em ＋':'Em breve'}</div>`}
         </div>
       </div>`).join('')}
     ${ed ? `<button class="btn btn-secondary btn-full" style="margin-top:8px" onclick="openModalModulo(null)">+ Novo módulo</button>` : ''}`;
@@ -4273,7 +4410,7 @@ async function abrirAula(id) {
     corpo = yid ? `<div class="video-wrap"><iframe src="https://www.youtube.com/embed/${yid}?rel=0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`
                 : `<div class="alert alert-warning">Link do YouTube inválido. <a href="${esc(a.url)}" target="_blank" rel="noopener">Abrir mesmo assim</a></div>`;
   } else if (a.tipo==='link') {
-    corpo = `<div class="aula-link-box"><div>🔗 Este conteúdo abre em outra aba.</div><a class="btn btn-primary" href="${esc(a.url)}" target="_blank" rel="noopener">Abrir conteúdo ↗</a><div class="text-muted" style="font-size:0.8rem;word-break:break-all">${esc(a.url)}</div></div>`;
+    corpo = `<div class="aula-link-box"><div>🔗 ${a.categoria==='exercicio'?'Este exercício abre em outra aba.':'Este conteúdo abre em outra aba.'}</div><a class="btn btn-primary" href="${esc(a.url)}" target="_blank" rel="noopener">${a.categoria==='exercicio'?'Abrir exercício':'Abrir conteúdo'} ↗</a><div class="text-muted" style="font-size:0.8rem;word-break:break-all">${esc(a.url)}</div></div>`;
   } else if (a.tipo==='texto') {
     corpo = `<div class="aula-texto">${textoHTML(a.conteudo)}</div>`;
   } else if (a.tipo==='arquivo') {
@@ -4283,7 +4420,7 @@ async function abrirAula(id) {
     <div class="card">
       <div class="card-body">
         <div class="aula-head">
-          <div><div class="text-muted" style="font-size:0.8rem">${esc(a.modulo?.titulo)}</div><h3 style="margin:2px 0 0">${aulaIcon(a)} ${esc(a.titulo)}</h3></div>
+          <div><div class="member-content-kickers"><span class="member-category-badge ${a.categoria==='exercicio'?'exercise':''}">${a.categoria==='exercicio'?'Exercício':'Material'}</span><span class="text-muted">${esc(a.modulo?.titulo)}</span></div><h3 style="margin:6px 0 0">${aulaIcon(a)} ${esc(a.titulo)}</h3></div>
           <button class="btn btn-sm ${feita?'btn-success':'btn-secondary'}" onclick="toggleConcluida('${a.id}')">${feita?'✓ Concluída':'Marcar como concluída'}</button>
         </div>
         ${a.descricao ? `<p class="text-muted">${esc(a.descricao)}</p>` : ''}
@@ -4304,7 +4441,7 @@ async function abrirAula(id) {
       corpoEl.innerHTML = `
         <div class="arquivo-bar">
           <span>${fileIcon(a.arquivo_nome)} ${esc(a.arquivo_nome)} <span class="text-muted">${fmtBytes(a.arquivo_tamanho)}</span></span>
-          <a class="btn btn-sm btn-primary" href="${url}" target="_blank" rel="noopener" download="${esc(a.arquivo_nome)}">⬇ Baixar</a>
+          <a class="btn btn-sm btn-primary" href="${url}" target="_blank" rel="noopener" download="${esc(a.arquivo_nome)}">⬇ ${a.categoria==='exercicio'?'Baixar exercício':'Baixar material'}</a>
         </div>
         ${isPdf ? `<iframe class="pdf-frame" src="${url}"></iframe>` : isImg ? `<img src="${url}" style="max-width:100%;border-radius:12px">` : ''}`;
     } catch (err) {
@@ -4440,9 +4577,16 @@ function openModalAula(moduloId, aulaId) {
     <form onsubmit="saveAula(event)" style="padding:20px">
       <div class="form-group"><label>Título *</label><input type="text" name="titulo" value="${esc(a?.titulo)}" placeholder="ex: Apostila Unit 1, Aula extra de pronúncia…" required></div>
       <div class="form-group"><label>Descrição</label><input type="text" name="descricao" value="${esc(a?.descricao)}"></div>
+      <div class="form-group"><label>Organizar como</label>
+        <select name="categoria">
+          <option value="material" ${(a?.categoria||'material')==='material'?'selected':''}>Material de apoio</option>
+          <option value="exercicio" ${a?.categoria==='exercicio'?'selected':''}>Exercício</option>
+        </select>
+        <span class="hint">O aluno verá materiais e exercícios em grupos separados dentro do módulo.</span>
+      </div>
       <div class="form-group"><label>Tipo de conteúdo</label>
         <div class="tipo-opts">
-          ${[['arquivo','📄 Arquivo (PDF, áudio, etc.)'],['youtube','▶️ Vídeo do YouTube'],['link','🔗 Link externo'],['texto','📖 Texto']].map(([v,l]) =>
+          ${[['arquivo','📄 Arquivo (PDF, áudio, etc.)'],['youtube','▶️ Vídeo do YouTube'],['link','🔗 Link / exercício externo'],['texto','📖 Texto']].map(([v,l]) =>
             `<label class="chip ${tipo===v?'active':''}"><input type="radio" name="tipo" value="${v}" ${tipo===v?'checked':''} onchange="trocaTipoAula(this)" style="display:none">${l}</label>`).join('')}
         </div>
       </div>
@@ -4476,7 +4620,7 @@ async function saveAula(e) {
   e.preventDefault();
   const fd = new FormData(e.target); const id = fd.get('id'); const a = id ? _D.aulas?.[id] : null;
   const tipo = fd.get('tipo');
-  const row = { titulo: fd.get('titulo').trim(), descricao: fd.get('descricao').trim()||null, tipo, url:null, conteudo:null };
+  const row = { titulo: fd.get('titulo').trim(), descricao: fd.get('descricao').trim()||null, tipo, categoria:fd.get('categoria')||'material', url:null, conteudo:null };
   const btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
   try {
     if (tipo==='youtube') { row.url = fd.get('url_youtube').trim(); if (!youtubeId(row.url)) throw new Error('Cole um link válido do YouTube'); }

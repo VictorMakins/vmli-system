@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VMLI Idiomas</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20261003-3">
+  <link rel="stylesheet" href="style.css?v=20261003-4">
 </head>
 <body>
 
@@ -66,6 +66,7 @@
             <label for="register-password-confirm">Confirme a senha</label>
             <input type="password" id="register-password-confirm" required minlength="8" autocomplete="new-password">
           </div>
+          <div id="register-feedback" class="auth-feedback" role="status" aria-live="polite" hidden></div>
           <button type="submit" class="btn btn-primary btn-full" id="register-btn">Criar conta</button>
           <button type="button" class="btn-link" id="register-back-btn">Voltar ao login</button>
         </form>
@@ -158,6 +159,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="app.js?v=20261003-3"></script>
+  <script src="app.js?v=20261003-4"></script>
 </body>
 </html>

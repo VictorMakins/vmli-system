@@ -258,14 +258,15 @@ async function handleLogout() {
 
 async function handleRegister(e) {
   e.preventDefault();
+  setRegisterFeedback('');
   const name = document.getElementById('register-name').value.trim();
   const email = document.getElementById('register-email').value.trim();
   const password = document.getElementById('register-password').value;
   const confirmation = document.getElementById('register-password-confirm').value;
   const button = document.getElementById('register-btn');
 
-  if (password.length < 8) { showToast('A senha deve ter pelo menos 8 caracteres', 'error'); return; }
-  if (password !== confirmation) { showToast('As senhas não conferem', 'error'); return; }
+  if (password.length < 8) return setRegisterFeedback('A senha deve ter pelo menos 8 caracteres.', 'error');
+  if (password !== confirmation) return setRegisterFeedback('As senhas não conferem.', 'error');
 
   button.disabled = true;
   button.textContent = 'Criando conta…';
@@ -277,7 +278,7 @@ async function handleRegister(e) {
     });
     if (error) throw error;
     if (data.user?.identities?.length === 0) {
-      showToast('Não foi possível criar a conta. Verifique o email informado ou tente entrar.', 'error');
+      setRegisterFeedback('Este email já possui uma conta. Tente entrar ou recuperar a senha.', 'error');
       return;
     }
 
@@ -293,18 +294,30 @@ async function handleRegister(e) {
       showToast('Conta criada com sucesso!', 'success');
     } else {
       document.getElementById('login-email').value = email;
-      showAuthView('login');
-      showToast('Cadastro iniciado. Confira seu email para confirmar a conta.', 'success');
+      document.getElementById('register-password').value = '';
+      document.getElementById('register-password-confirm').value = '';
+      setRegisterFeedback('Cadastro recebido. Confira sua caixa de entrada e o spam para confirmar o email; depois volte ao login.', 'success');
     }
   } catch (error) {
-    const message = /already|registered/i.test(error.message)
-      ? 'Este email já possui uma conta. Tente entrar ou recuperar a senha.'
-      : 'Não foi possível criar a conta. Confira os dados e tente novamente.';
+    const detail = String(error?.message||'Erro desconhecido');
+    let message = `Não foi possível criar a conta: ${detail}`;
+    if (/already|registered/i.test(detail)) message = 'Este email já possui uma conta. Tente entrar ou recuperar a senha.';
+    else if (/database error saving new user|handle_new_user_profile|profiles/i.test(detail)) message = `O Supabase recusou a criação do perfil do aluno: ${detail}. Confira se 04_cadastro_publico.sql foi executado no projeto correto.`;
+    else if (/rate limit|email rate/i.test(detail)) message = 'O limite de envio de emails foi atingido. Aguarde alguns minutos e tente novamente.';
+    setRegisterFeedback(message,'error');
     showToast(message, 'error');
   } finally {
     button.disabled = false;
     button.textContent = 'Criar conta';
   }
+}
+
+function setRegisterFeedback(message,type='info'){
+  const feedback = document.getElementById('register-feedback');
+  if (!feedback) return;
+  feedback.textContent = message;
+  feedback.dataset.type = type;
+  feedback.hidden = !message;
 }
 
 async function handleForgotPassword(e) {

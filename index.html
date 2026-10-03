@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VMLI Idiomas</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=ee28732">
+  <link rel="stylesheet" href="style.css?v=20261003-3">
 </head>
 <body>
 
@@ -36,6 +36,10 @@
             <button type="submit" class="btn btn-primary btn-full" id="login-btn">Entrar</button>
           </div>
         </form>
+        <div class="login-placement-test">
+          <p><strong>Não sabe seu nível?</strong><br><span>Faça o teste gratuito de nivelamento.</span></p>
+          <a class="btn btn-secondary btn-full" href="https://docs.google.com/forms/d/e/1FAIpQLSeuDkGW4W25jyc04lheGaDoa1KIrT1v6oYHHJC-Aw5voojrfw/viewform?usp=sharing" target="_blank" rel="noopener">Fazer teste de nivelamento</a>
+        </div>
         <div class="auth-links" id="login-links">
           <button type="button" class="btn-link" id="forgot-btn">Esqueci minha senha</button>
           <button type="button" class="btn-link auth-register-link" id="show-register-btn">Criar conta de aluno</button>
@@ -65,6 +69,10 @@
           <button type="submit" class="btn btn-primary btn-full" id="register-btn">Criar conta</button>
           <button type="button" class="btn-link" id="register-back-btn">Voltar ao login</button>
         </form>
+            <div class="login-placement-test">
+              <p><strong>Descubra seu nível de inglês</strong><br><span>Faça o teste de nivelamento gratuito antes de começar.</span></p>
+              <a class="btn btn-secondary btn-full" href="https://docs.google.com/forms/d/e/1FAIpQLSeuDkGW4W25jyc04lheGaDoa1KIrT1v6oYHHJC-Aw5voojrfw/viewform?usp=sharing" target="_blank" rel="noopener">Fazer teste de nivelamento</a>
+            </div>
       </section>
 
       <section class="auth-view" id="recovery-view" hidden>
@@ -149,6 +157,7 @@
   <div id="toast-container"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=ee28732"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="app.js?v=20261003-3"></script>
 </body>
 </html>

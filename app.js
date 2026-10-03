@@ -26,6 +26,7 @@ const NAV = {
   professor: [
     { id:'dashboard',        icon:'🏠', label:'Dashboard' },
     { id:'minhas-turmas',    icon:'📚', label:'Minhas Turmas' },
+    { id:'agenda',           icon:'🗓️', label:'Agenda' },
     { id:'marcar-presenca',  icon:'✅', label:'Marcar Presença' },
     { id:'historico',        icon:'📋', label:'Histórico' },
     { id:'eventos',          icon:'📅', label:'Eventos' },
@@ -34,6 +35,11 @@ const NAV = {
   ],
   aluno: [
     { id:'membros',     icon:'🎬', label:'Área de Membros' },
+    { id:'materiais-nivel', icon:'📘', label:'Meu nível e materiais' },
+    { id:'exercicios-nivel', icon:'✏️', label:'Exercícios' },
+    { id:'progresso', icon:'📈', label:'Meu progresso' },
+    { id:'pagamentos-aluno', icon:'💳', label:'Meus pagamentos' },
+    { id:'agenda', icon:'🗓️', label:'Minha agenda' },
     { id:'minha-conta', icon:'👤', label:'Minha conta' },
   ],
   admin: [
@@ -45,6 +51,10 @@ const NAV = {
     { id:'experimentais', icon:'🔬', label:'Experimentais' },
     { id:'turmas',        icon:'📚', label:'Turmas' },
     { id:'professores',   icon:'👨‍🏫', label:'Professores' },
+    { id:'agenda',        icon:'🗓️', label:'Agenda e aulas' },
+    { id:'materiais-nivel', icon:'📘', label:'Materiais por nível' },
+    { id:'exercicios-nivel', icon:'✏️', label:'Exercícios A1–C2' },
+    { id:'adiantamentos', icon:'🧾', label:'Pedidos de adiantamento' },
     { id:'servicos',      icon:'🛠️', label:'Serviços' },
     { id:'eventos',       icon:'📅', label:'Eventos' },
     { id:'financeiro',    icon:'💰', label:'Financeiro (Professores)' },
@@ -58,6 +68,10 @@ const NAV = {
     { id:'membros',       icon:'🎬', label:'Área de Membros' },
     { id:'experimentais', icon:'🔬', label:'Experimentais' },
     { id:'turmas',        icon:'📚', label:'Turmas' },
+    { id:'agenda',        icon:'🗓️', label:'Agenda e aulas' },
+    { id:'materiais-nivel', icon:'📘', label:'Materiais por nível' },
+    { id:'exercicios-nivel', icon:'✏️', label:'Exercícios A1–C2' },
+    { id:'adiantamentos', icon:'🧾', label:'Pedidos de adiantamento' },
     { id:'eventos',       icon:'📅', label:'Eventos' },
   ],
   financeiro: [
@@ -68,12 +82,13 @@ const NAV = {
     { id:'membros',    icon:'🎬', label:'Área de Membros' },
     { id:'eventos',    icon:'📅', label:'Eventos' },
     { id:'financeiro', icon:'💰', label:'Financeiro (Professores)' },
+    { id:'adiantamentos', icon:'🧾', label:'Pedidos de adiantamento' },
   ],
 };
 // Itens de menu que dependem de permissão (ver seção 20 — PERMISSÕES)
-const NAV_PERM = { alunos:'alunos_ver', cobrancas:'pagamentos_ver', crm:'crm_ver', membros:'membros_ver', usuarios:'__admin' };
+const NAV_PERM = { alunos:'alunos_ver', cobrancas:'pagamentos_ver', adiantamentos:'pagamentos_ver', crm:'crm_ver', membros:'membros_ver', usuarios:'__admin' };
 function navAllowed(id) {
-  if (profile?.role === 'aluno') return ['membros','minha-conta'].includes(id);
+  if (profile?.role === 'aluno') return ['membros','minha-conta','materiais-nivel','exercicios-nivel','progresso','pagamentos-aluno','agenda'].includes(id);
   const p = NAV_PERM[id];
   if (!p) return true;
   if (p === '__admin') return profile?.role === 'admin';
@@ -130,7 +145,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function loadProfile(authUser) {
   user = authUser;
   const { data } = await db.from('profiles').select('*').eq('id', authUser.id).single();
-  profile = data;
+  profile = data ? { ...data, avatar_url: data.avatar_url || authUser.user_metadata?.avatar_url || null } : data;
 }
 
 // ============================================================
@@ -150,6 +165,48 @@ function showAuthView(view) {
   });
 }
 
+function getStoredAvatarUrl() {
+  if (!user?.id) return '';
+  const profileUrl = profile?.avatar_url || profile?.photo_url || profile?.foto_url || '';
+  const localUrl = localStorage.getItem(`vmli-profile-photo-${user.id}`);
+  return profileUrl || localUrl || '';
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Não foi possível ler a imagem.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderUserAvatar(initials, className = 'user-avatar') {
+  const avatarUrl = getStoredAvatarUrl();
+  if (avatarUrl) {
+    return `<img class="${className} avatar-image" src="${avatarUrl}" alt="Foto do usuário" referrerpolicy="no-referrer">`;
+  }
+  return `<div class="${className}">${initials}</div>`;
+}
+
+function showReviewPromptIfNeeded() {
+  if (profile?.role !== 'aluno') return;
+  const key = 'vmli-student-review-prompt';
+  if (localStorage.getItem(key) === 'done') return;
+
+  openModal(`
+    <div class="modal-header"><h3>⭐ Avalie a VMLI</h3><button class="modal-close" onclick="localStorage.setItem('${key}', 'done'); closeModal()">✕</button></div>
+    <div class="review-modal-body">
+      <p>Se você gostou da experiência, nos ajude com uma avaliação de 5 estrelas.</p>
+      <div class="review-stars">★★★★★</div>
+      <div class="review-actions">
+        <a class="btn btn-primary" href="https://g.page/r/CVD53TXccitCEAI/review" target="_blank" rel="noopener" onclick="localStorage.setItem('${key}', 'done'); closeModal();">Avaliar agora</a>
+        <button type="button" class="btn btn-secondary" onclick="localStorage.setItem('${key}', 'done'); closeModal();">Depois</button>
+      </div>
+    </div>
+  `);
+}
+
 function showApp() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
@@ -157,16 +214,23 @@ function showApp() {
 
   const initials = profile?.name?.trim().split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase() || '?';
   document.getElementById('sidebar-user').innerHTML = `
-    <div class="user-avatar">${initials}</div>
-    <div>
-      <div class="user-name">${profile?.name || 'Usuário'}</div>
-      <div class="user-role">${getRoleLabel(profile?.role)}</div>
-    </div>`;
+    <div class="sidebar-user-profile">
+      ${renderUserAvatar(initials, 'user-avatar')}
+      <div class="sidebar-user-copy">
+        <div class="user-name">${esc(profile?.name || 'Usuário')}</div>
+        <div class="user-role">${esc(getRoleLabel(profile?.role))}</div>
+      </div>
+    </div>
+    <label class="sidebar-photo-action" for="sidebar-photo-input" title="Alterar foto de perfil" aria-label="Alterar foto de perfil">
+      <span aria-hidden="true">📷</span>
+      <input id="sidebar-photo-input" type="file" accept="image/png,image/jpeg,image/webp" onchange="uploadFotoPerfil(this.files && this.files[0],'sidebar-photo-input'); this.value='';">
+    </label>`;
 
   const rb = document.getElementById('role-badge');
   rb.textContent = getRoleLabel(profile?.role);
   rb.className = `role-badge role-${profile?.role}`;
 
+  if (profile?.role === 'aluno') showReviewPromptIfNeeded();
   showTab(profile?.role === 'aluno' ? 'membros' : 'dashboard');
 }
 
@@ -340,6 +404,12 @@ function showTab(tab) {
     case 'usuarios':        renderUsuarios();       break;
     case 'membros':         renderMembros();        break;
     case 'minha-conta':     renderMinhaConta();     break;
+    case 'materiais-nivel': isAluno() ? renderMateriaisAluno() : renderMateriaisAdmin(); break;
+    case 'exercicios-nivel': isAluno() ? renderExerciciosAluno() : renderExerciciosAdmin(); break;
+    case 'progresso':       renderProgressoAluno(); break;
+    case 'pagamentos-aluno':renderPagamentosAluno(); break;
+    case 'adiantamentos':   renderAdiantamentos(); break;
+    case 'agenda':          renderAgenda(); break;
     default:                renderDashboard();
   }
 }
@@ -772,7 +842,7 @@ async function renderProfessores() {
             ${profs?.length ? profs.map(p=>`
               <tr>
                 <td><div class="user-cell">
-                  <div class="mini-avatar">${initials(p.name)}</div>${p.name}
+                  ${p.foto_url?`<img class="mini-avatar avatar-image" src="${esc(p.foto_url)}" alt="">`:`<div class="mini-avatar">${initials(p.name)}</div>`}${esc(p.name)}
                 </div></td>
                 <td>${p.email}</td>
                 <td>${formatCurrency(p.valor_aula||0)}</td>
@@ -809,6 +879,11 @@ function openModalProfessor(id) {
         <input type="email" name="email" value="${esc(p?.email)}" ${p?'readonly':''} required>
         ${!p ? '<span class="hint">Senha padrão: VMLI2024!</span>' : ''}
       </div>
+      <div class="form-row">
+        <div class="form-group"><label>Telefone *</label><input type="tel" name="telefone" value="${esc(p?.telefone||'')}" required></div>
+        <div class="form-group"><label>Chave Pix *</label><input type="text" name="pix" value="${esc(p?.pix||'')}" required></div>
+      </div>
+      <div class="form-group"><label>Foto profissional ${p?'(opcional)':'*'}</label><input type="file" name="foto_profissional" accept="image/png,image/jpeg,image/webp" ${p?'':'required'}>${p?.foto_url?'<small>Uma nova imagem substitui a atual.</small>':''}</div>
       <div class="form-group">
         <label>Valor por Aula (R$) *</label>
         <input type="number" name="valor_aula" step="0.01" min="0" value="${p?.valor_aula||''}" required>
@@ -828,6 +903,9 @@ async function saveProfessor(e) {
   const name   = fd.get('name').trim();
   const email  = fd.get('email').trim();
   const valor  = parseFloat(fd.get('valor_aula'));
+  const telefone = fd.get('telefone').trim();
+  const pix = fd.get('pix').trim();
+  const foto = fd.get('foto_profissional');
   const btn    = e.target.querySelector('[type=submit]');
   btn.disabled = true; btn.textContent = 'Salvando…';
 
@@ -835,7 +913,9 @@ async function saveProfessor(e) {
     if (id) {
       // Atualizar perfil existente
       const old = _D.profs?.[id];
-      await db.from('profiles').update({ name, valor_aula: valor }).eq('id', id);
+      const { error } = await db.from('profiles').update({ name, valor_aula: valor, telefone, pix }).eq('id', id);
+      if (error) throw error;
+      if (foto?.size) await uploadFotoProfissional(id,foto);
       if (old?.valor_aula !== valor) {
         await db.from('valor_aula_historico').insert({
           professor_id: id, valor_anterior: old?.valor_aula, valor_novo: valor, alterado_por: user.id
@@ -844,7 +924,9 @@ async function saveProfessor(e) {
       showToast('Professor atualizado!', 'success');
     } else {
       // Criar novo usuário — preserva sessão do admin (helper na seção 26)
-      const nuUser = await createAuthUser({ name, email, role: 'professor', valor_aula: valor });
+      const nuUser = await createAuthUser({ name, email, role: 'professor', valor_aula: valor, telefone, pix });
+      if (!nuUser) throw new Error('Não foi possível criar o perfil do professor.');
+      await uploadFotoProfissional(nuUser.id,foto);
       if (nuUser) {
         await db.from('valor_aula_historico').insert({
           professor_id: nuUser.id, valor_anterior: 0, valor_novo: valor, alterado_por: user.id
@@ -864,6 +946,20 @@ async function saveProfessor(e) {
     showToast(msg, 'error');
     btn.disabled = false; btn.textContent = id ? 'Salvar' : 'Criar Professor';
   }
+}
+
+async function uploadFotoProfissional(profileId,file){
+  const types = { 'image/png':'png','image/jpeg':'jpg','image/webp':'webp' };
+  if (!file || !types[file.type]) throw new Error('Envie uma foto em PNG, JPG ou WEBP.');
+  if (file.size>5*1024*1024) throw new Error('A foto profissional deve ter no máximo 5 MB.');
+  const path = `${profileId}/avatar.${types[file.type]}`;
+  const { error: uploadError } = await db.storage.from('profile-photos').upload(path,file,{upsert:true,contentType:file.type});
+  if (uploadError) throw uploadError;
+  const { data } = db.storage.from('profile-photos').getPublicUrl(path);
+  const url = `${data.publicUrl}${data.publicUrl.includes('?')?'&':'?'}v=${Date.now()}`;
+  const { error } = await db.from('profiles').update({ foto_url:url,avatar_url:url }).eq('id',profileId);
+  if (error) throw error;
+  if (profileId===user.id && profile) profile.foto_url = profile.avatar_url = url;
 }
 
 async function toggleProfessorStatus(id, ativo) {
@@ -2354,6 +2450,10 @@ function openModalAluno(id) {
         </div>
       </div>
       <div class="form-row">
+        <div class="form-group"><label>Nível atual</label><select name="nivel">${NIVEIS.map(n=>`<option value="${n}" ${(a?.nivel||'A1')===n?'selected':''}>${n}</option>`).join('')}</select></div>
+        ${can('pagamentos_editar')?`<div class="form-group"><label>Link do contrato</label><input type="url" name="contrato_url" value="${esc(a?.contrato_url||'')}" placeholder="https://…"></div>`:''}
+      </div>
+      <div class="form-row">
         <div class="form-group">
           <label>Data de nascimento</label>
           <input type="date" name="data_nascimento" value="${a?.data_nascimento||''}">
@@ -2398,8 +2498,9 @@ async function saveAluno(e) {
   const row = {
     nome: g('nome'), email: g('email'), telefone: g('telefone'), notas: g('notas'),
     idioma: g('idioma'), origem: g('origem'), cpf: g('cpf'), responsavel: g('responsavel'),
-    data_nascimento: g('data_nascimento'), data_matricula: g('data_matricula'),
+    data_nascimento: g('data_nascimento'), data_matricula: g('data_matricula'), nivel:g('nivel')||'A1',
   };
+  if (can('pagamentos_editar')) row.contrato_url = g('contrato_url');
   const btn = e.target.querySelector('[type=submit]');
   btn.disabled = true;
   try {
@@ -2515,6 +2616,8 @@ function fichaDadosHTML() {
     ${item('Telefone', esc(a.telefone))}
     ${item('Email', esc(a.email))}
     ${item('Idioma', esc(a.idioma))}
+    ${item('Nível', esc(a.nivel||'A1'))}
+    ${item('Contrato', a.contrato_url?`<a href="${esc(a.contrato_url)}" target="_blank" rel="noopener">Abrir contrato ↗</a>`:'—')}
     ${item('Nascimento', formatDate(a.data_nascimento))}
     ${item('CPF', esc(a.cpf))}
     ${item('Responsável', esc(a.responsavel))}
@@ -3433,48 +3536,49 @@ async function renderCRM() {
   const cols = funil.funil_etapas.filter(e => e.tipo==='aberta' || _D.crmShowFinal);
 
   setContent(`
-    <div class="page-header">
-      <h2>CRM 🎯</h2>
+    <div class="page-header crm-page-header">
+      <div><span class="crm-eyebrow">RELACIONAMENTO</span><h2>CRM</h2></div>
       <div class="action-btns">
         ${can('crm_funis') ? '<button class="btn btn-secondary" onclick="renderFunis()">⚙️ Configurar funis</button>' : ''}
+        <button class="btn btn-secondary" onclick="downloadLeadTemplate()">⇩ Baixar modelo</button>
+        ${podeEd ? '<button class="btn btn-secondary" onclick="openLeadImport()">⇧ Importar Excel</button>' : ''}
         ${podeEd ? '<button class="btn btn-primary" onclick="openModalLead(null)">+ Novo lead</button>' : ''}
       </div>
     </div>
-    ${ativos.length > 1 ? `<div class="chips funil-tabs">
-      ${ativos.map(f => `<button class="chip ${f.id===funil.id?'active':''}" onclick="_D.crmFunil='${f.id}';renderCRM()">${esc(f.nome)}</button>`).join('')}
-    </div>` : ''}
-    ${funil.descricao ? `<p class="text-muted" style="margin:-4px 0 12px">${esc(funil.descricao)}</p>` : ''}
-    <div class="stats-grid" style="margin-bottom:16px">
-      ${statCard('🎯', abertos.length, 'Em andamento')}
-      ${statCard('✨', novosMes, `Novos em ${MONTHS[mes]}`)}
-      ${statCard('🏆', ganhosMes, `Ganhos em ${MONTHS[mes]}`)}
-      ${statCard('📈', taxa+'%', 'Taxa de conversão')}
+    <div class="crm-board-meta">
+      ${ativos.length > 1 ? `<div class="crm-funnel-tabs" role="tablist" aria-label="Funis">
+        ${ativos.map(f => `<button class="crm-funnel-tab ${f.id===funil.id?'active':''}" role="tab" aria-selected="${f.id===funil.id}" onclick="_D.crmFunil='${f.id}';renderCRM()">${esc(f.nome)}</button>`).join('')}
+      </div>` : `<div class="crm-board-name">${esc(funil.nome)}</div>`}
+      <div class="crm-board-stats"><span><strong>${abertos.length}</strong> em andamento</span><span><strong>${novosMes}</strong> novos no mês</span><span><strong>${ganhosMes}</strong> ganhos no mês</span><span><strong>${taxa}%</strong> conversão</span></div>
     </div>
-    <div class="toolbar" style="margin-bottom:12px">
-      <input type="text" class="search-input" placeholder="🔍 Buscar lead…" oninput="filterLeads(this.value)">
-      <label class="chip ${_D.crmShowFinal?'active':''}" style="cursor:pointer">
-        <input type="checkbox" ${_D.crmShowFinal?'checked':''} onchange="_D.crmShowFinal=this.checked;renderCRM()" style="display:none"> Mostrar etapas finais (ganho / perdido)
-      </label>
+    ${funil.descricao ? `<p class="crm-board-description">${esc(funil.descricao)}</p>` : ''}
+    <div class="crm-toolbar">
+      <label class="crm-search"><span aria-hidden="true">⌕</span><input type="search" placeholder="Buscar cartões" oninput="filterLeads(this.value)"></label>
+      <label class="crm-final-toggle"><input type="checkbox" ${_D.crmShowFinal?'checked':''} onchange="_D.crmShowFinal=this.checked;renderCRM()"><span>Mostrar ganhos e perdas</span></label>
     </div>
     ${!funil.funil_etapas.length ? `<div class="alert alert-warning">Este funil ainda não tem etapas. ${can('crm_funis')?'<button class="btn btn-sm btn-warning" onclick="renderFunis()">Configurar</button>':''}</div>` : ''}
-    <div class="kanban" id="kanban">
+    <div class="crm-board-scroll"><div class="kanban" id="kanban">
       ${cols.map(e => {
         const ls = (leads||[]).filter(l => l.etapa_id===e.id);
         return `
-        <div class="kanban-col" data-etapa="${e.id}" style="border-top:3px solid ${e.cor}" ${podeEd?'ondragover="event.preventDefault();this.classList.add(\'over\')" ondragleave="this.classList.remove(\'over\')" ondrop="dropLead(event)"':''}>
-          <div class="kanban-head"><span>${e.tipo==='ganho'?'🏆 ':e.tipo==='perdido'?'❌ ':''}${esc(e.nome)}</span><span class="kanban-count">${ls.length}</span></div>
-          <div class="kanban-body">
-            ${ls.map(l => leadCard(l, podeEd)).join('') || '<div class="kanban-empty">—</div>'}
+        <section class="kanban-col" data-etapa="${e.id}" data-funil="${funil.id}" style="--stage-color:${esc(e.cor||'#FFC800')}" ${podeEd ?
+          `ondragover="event.preventDefault(); this.classList.add('over');" ondragleave="this.classList.remove('over');" ondrop="dropLead(event)"` : ''}>
+          <div class="kanban-head" ${podeEd ? `draggable="true" ondragstart="dragStageStart(event, '${funil.id}', '${e.id}')" ondragend="clearDragState(this)"` : ''}>
+            <span class="kanban-stage-dot"></span><span class="kanban-stage-title">${e.tipo==='ganho'?'🏆 ':e.tipo==='perdido'?'× ':''}${esc(e.nome)}</span><span class="kanban-count">${ls.length}</span>
           </div>
-        </div>`; }).join('')}
-    </div>`);
+          <div class="kanban-body">
+            ${ls.map(l => leadCard(l, podeEd)).join('') || '<div class="kanban-empty">Nenhum cartão nesta lista</div>'}
+          </div>
+          ${podeEd ? `<button class="kanban-add-card" onclick="openModalLead(null,'${e.id}')"><span>+</span> Adicionar cartão</button>` : ''}
+        </section>`; }).join('')}
+    </div></div>`);
 }
 
 function leadCard(l, podeEd) {
   const dias = daysSince((l.updated_at||l.created_at).slice(0,10));
   return `
     <div class="kanban-card" data-n="${esc((l.nome+' '+(l.telefone||'')+' '+(l.idioma||'')).toLowerCase())}"
-         ${podeEd?`draggable="true" ondragstart="event.dataTransfer.setData('text','${l.id}')"`:''} onclick="openLeadDetail('${l.id}')">
+         ${podeEd?`draggable="true" ondragstart="event.dataTransfer.effectAllowed='move'; event.dataTransfer.setData('application/x-vmli-lead', '${l.id}');"`:''} onclick="openLeadDetail('${l.id}')">
       <div class="kc-title">${esc(l.nome)}</div>
       <div class="kc-tags">
         ${l.idioma ? `<span class="badge badge-info">${esc(l.idioma)}</span>` : ''}
@@ -3490,12 +3594,174 @@ function leadCard(l, podeEd) {
 function filterLeads(q) {
   q = (q||'').toLowerCase();
   document.querySelectorAll('.kanban-card').forEach(c => { c.style.display = c.dataset.n.includes(q) ? '' : 'none'; });
+  document.querySelectorAll('.kanban-col').forEach(col => {
+    const visible = [...col.querySelectorAll('.kanban-card')].filter(card => card.style.display !== 'none').length;
+    const count = col.querySelector('.kanban-count');
+    if (count) count.textContent = q ? `${visible}/${col.querySelectorAll('.kanban-card').length}` : col.querySelectorAll('.kanban-card').length;
+  });
+}
+
+function downloadLeadTemplate() {
+  if (!window.XLSX) { showToast('Não foi possível carregar o gerador de planilhas. Atualize a página e tente novamente.','error'); return; }
+  const workbook = XLSX.utils.book_new();
+  const leadsSheet = XLSX.utils.aoa_to_sheet([['Nome','Telefone','Email','Idioma','Origem','Observações']]);
+  leadsSheet['!cols'] = [{wch:30},{wch:20},{wch:32},{wch:20},{wch:22},{wch:48}];
+  leadsSheet['!autofilter'] = { ref:'A1:F1' };
+  XLSX.utils.book_append_sheet(workbook,leadsSheet,'Leads');
+  const instructionsSheet = XLSX.utils.aoa_to_sheet([
+    ['Como preencher o modelo de leads'],
+    ['Preencha uma linha por lead, abaixo dos cabeçalhos da aba Leads.'],
+    ['Nome é obrigatório. As outras colunas são opcionais.'],
+    ['Telefone: inclua DDD e código do país quando possível.'],
+    ['Email: use um endereço válido.'],
+    ['Idioma: idioma de interesse do lead.'],
+    ['Origem: canal pelo qual o lead chegou.'],
+    ['Observações: contexto adicional para a equipe comercial.'],
+    ['Não altere os nomes dos cabeçalhos para facilitar a importação.'],
+  ]);
+  instructionsSheet['!cols'] = [{wch:100}];
+  XLSX.utils.book_append_sheet(workbook,instructionsSheet,'Instruções');
+  const file = XLSX.write(workbook,{ bookType:'xlsx', type:'array' });
+  const blob = new Blob([file],{ type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'modelo-importacao-leads-vmli.xlsx';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function openLeadImport() {
+  if (!can('crm_editar')) { showToast('Sem permissão para editar o CRM','error'); return; }
+  if (!window.XLSX) { showToast('Não foi possível carregar o leitor de Excel. Atualize a página e tente novamente.','error'); return; }
+  _D.crmImportRows = [];
+  _D.crmImportOffset = 0;
+  openModal(`
+    <div class="modal-header"><h3>Importar leads do Excel</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="crm-import-body">
+      <p>Escolha uma planilha .xlsx ou .xls. Use o modelo para manter os cabeçalhos que o sistema lê.</p>
+      <button type="button" class="btn btn-secondary" onclick="downloadLeadTemplate()">⇩ Baixar modelo Excel</button>
+      <label class="crm-import-file"><span>Selecionar planilha</span><input type="file" accept=".xlsx,.xls" onchange="previewLeadImport(this.files && this.files[0]); this.value=''"></label>
+      <div id="crm-import-preview" aria-live="polite"></div>
+    </div>`);
+}
+
+function normalizeLeadHeader(value) {
+  return String(value||'').trim().toLowerCase().normalize('NFD').replace(/\p{M}/gu,'').replace(/[^a-z0-9]+/g,'');
+}
+
+function previewLeadImport(file) {
+  const preview = document.getElementById('crm-import-preview');
+  if (!file || !preview) return;
+  try {
+    const workbook = XLSX.read(file, { type:'array', cellDates:false });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const matrix = XLSX.utils.sheet_to_json(sheet, { header:1, defval:'', raw:false });
+    if (matrix.length < 2) throw new Error('A planilha precisa ter cabeçalho e pelo menos uma linha de dados.');
+    const headers = matrix[0].map(normalizeLeadHeader);
+    const aliases = {
+      nome:['nome','name','lead','contato','cliente','prospect','nomedolead'],
+      telefone:['telefone','celular','whatsapp','phone','telefonewhatsapp','fone','celulardocontato1','telefonedocontato1'],
+      email:['email','e-mail','correioeletronico','emaildocontato1'],
+      idioma:['idioma','lingua','interesse','idiomadeinteresse'],
+      origem:['origem','source','canal'],
+      observacoes:['observacoes','observacao','notes','anotacoes','comentarios']
+    };
+    const columns = Object.fromEntries(Object.entries(aliases).map(([field, names]) => [field, headers.findIndex(header => names.includes(header))]));
+    if (columns.nome < 0) throw new Error('Não encontrei a coluna Nome. Confira os cabeçalhos da primeira linha.');
+
+    const rows = matrix.slice(1).map(values => {
+      const value = field => columns[field] < 0 ? '' : String(values[columns[field]]||'').trim();
+      return { nome:value('nome'), telefone:value('telefone')||null, email:value('email')||null, idioma:value('idioma')||null,
+        origem:value('origem')||null, observacoes:value('observacoes')||null };
+    }).filter(row => row.nome);
+    _D.crmImportRows = rows;
+    _D.crmImportOffset = 0;
+    const skipped = matrix.slice(1).length - rows.length;
+    preview.innerHTML = `<div class="crm-import-summary"><strong>${rows.length}</strong> lead(s) prontos para importar${skipped ? ` · ${skipped} linha(s) sem nome serão ignoradas` : ''}</div>
+      ${rows.length ? `<div class="crm-import-table-wrap"><table class="crm-import-table"><thead><tr><th>Nome</th><th>Telefone</th><th>Email</th><th>Origem</th></tr></thead><tbody>${rows.slice(0,5).map(row=>`<tr><td>${esc(row.nome)}</td><td>${esc(row.telefone||'—')}</td><td>${esc(row.email||'—')}</td><td>${esc(row.origem||'—')}</td></tr>`).join('')}</tbody></table>${rows.length>5?`<div class="crm-import-more">e mais ${rows.length-5} lead(s)</div>`:''}</div><div class="crm-import-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button id="crm-import-submit" class="btn btn-primary" onclick="importLeadRows()">Importar ${rows.length} lead(s)</button></div>` : ''}`;
+  } catch (error) {
+    _D.crmImportRows = [];
+    preview.innerHTML = `<div class="alert alert-warning">${esc(error.message||'Não foi possível ler essa planilha.')}</div>`;
+  }
+}
+
+async function importLeadRows() {
+  const rows = _D.crmImportRows||[];
+  const funnel = _D.funis?.[_D.crmFunil];
+  const stage = funnel?.funil_etapas?.find(item=>item.tipo==='aberta');
+  if (!rows.length) { showToast('Nenhum lead válido para importar.','error'); return; }
+  if (!funnel || !stage) { showToast('O funil atual não possui uma etapa aberta para receber os leads.','error'); return; }
+  const button = document.getElementById('crm-import-submit');
+  let offset = _D.crmImportOffset||0;
+  if (offset>=rows.length) { showToast('Todos os leads já foram importados.','info'); return; }
+  if (button) { button.disabled = true; button.textContent = `Importando ${offset+1} de ${rows.length}…`; }
+  const payload = rows.map(row=>({ ...row, funil_id:funnel.id, etapa_id:stage.id, responsavel_id:user.id, created_by:user.id }));
+  for (; offset<payload.length; offset+=100) {
+    const { error } = await db.from('leads').insert(payload.slice(offset,offset+100));
+    if (error) {
+      _D.crmImportOffset = offset;
+      showToast(offset ? `${offset} lead(s) importados. Erro no restante: ${error.message}` : 'Erro ao importar: '+error.message,'error');
+      if (button) { button.disabled = false; button.textContent = `Retomar importação (${rows.length-offset} restantes)`; }
+      return;
+    }
+    _D.crmImportOffset = Math.min(rows.length,offset+100);
+    if (button) button.textContent = `Importando ${_D.crmImportOffset} de ${rows.length}…`;
+  }
+  _D.crmImportRows = [];
+  _D.crmImportOffset = 0;
+  showToast(`${rows.length} lead(s) importados com sucesso!`,'success');
+  closeModal();
+  await renderCRM();
+}
+function dragStageStart(ev, funilId, etapaId) {
+  ev.dataTransfer.effectAllowed = 'move';
+  ev.dataTransfer.setData('application/x-vmli-stage', etapaId);
+  ev.dataTransfer.setData('application/x-vmli-funil', funilId);
+  ev.currentTarget?.classList?.add('dragging');
+}
+function clearDragState(el) {
+  el?.classList?.remove('dragging');
+  document.querySelectorAll('.kanban-col, .etapa-row').forEach(node => node.classList.remove('dragging', 'drop-target', 'over'));
 }
 async function dropLead(ev) {
   ev.preventDefault();
-  const col = ev.currentTarget; col.classList.remove('over');
-  const id = ev.dataTransfer.getData('text'); const etapaId = col.dataset.etapa;
-  if (id && etapaId) moverLead(id, etapaId);
+  const col = ev.currentTarget; col.classList.remove('over', 'drop-target');
+  const stageId = ev.dataTransfer.getData('application/x-vmli-stage');
+  const leadId = ev.dataTransfer.getData('application/x-vmli-lead');
+  const etapaId = col.dataset.etapa;
+
+  if (stageId && stageId !== etapaId) {
+    const funilId = ev.dataTransfer.getData('application/x-vmli-funil') || col.dataset.funil;
+    await reorderEtapaByDrag(funilId, stageId, etapaId);
+    return;
+  }
+
+  if (leadId && etapaId) moverLead(leadId, etapaId);
+}
+async function reorderEtapaByDrag(funilId, draggedId, targetId) {
+  const f = _D.funis?.[funilId];
+  if (!f || draggedId === targetId) return;
+  const ordered = [...(f.funil_etapas||[])].sort((a,b)=> (a.ordem ?? 0) - (b.ordem ?? 0));
+  const fromIndex = ordered.findIndex(x => x.id === draggedId);
+  const toIndex = ordered.findIndex(x => x.id === targetId);
+  if (fromIndex < 0 || toIndex < 0) return;
+
+  const [moved] = ordered.splice(fromIndex, 1);
+  ordered.splice(toIndex, 0, moved);
+
+  await Promise.all(ordered.map((etapa, index) => {
+    if ((etapa.ordem ?? index) === index) return Promise.resolve();
+    return db.from('funil_etapas').update({ ordem: index }).eq('id', etapa.id);
+  }));
+
+  if (activeTab === 'crm') {
+    await renderCRM();
+  } else {
+    await renderFunis();
+  }
 }
 
 // Move um lead para outra etapa (mesmo funil ou outro). Etapa "ganho" abre a matrícula; "perdido" pede motivo.
@@ -3538,11 +3804,11 @@ function trocaFunilNoForm(sel) {
   const et = sel.form.querySelector('[name=etapa_id]'); if (et) et.innerHTML = etapasOptionsHTML(sel.value);
 }
 
-function openModalLead(id) {
+function openModalLead(id, initialStageId) {
   if (!can('crm_editar')) { showToast('Sem permissão para editar o CRM','error'); return; }
   const l = id ? _D.leads?.[id] : null;
   const funilId = l?.funil_id || _D.crmFunil;
-  const etapaId = l?.etapa_id || _D.funis[funilId]?.funil_etapas.find(e=>e.tipo==='aberta')?.id;
+  const etapaId = l?.etapa_id || initialStageId || _D.funis[funilId]?.funil_etapas.find(e=>e.tipo==='aberta')?.id;
   openModal(`
     <div class="modal-header"><h3>${l?'Editar lead':'Novo lead'}</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
     <form onsubmit="saveLead(event)" style="padding:20px">
@@ -3803,7 +4069,12 @@ function funilCardHTML(f, porEtapa) {
       </div>
       <div class="card-body">
         ${f.funil_etapas.length ? f.funil_etapas.map((e,i) => `
-          <div class="etapa-row">
+          <div class="etapa-row" draggable="true" data-etapa="${e.id}" data-funil="${f.id}"
+               ondragstart="dragStageStart(event, '${f.id}', '${e.id}')"
+               ondragend="clearDragState(this)"
+               ondragover="event.preventDefault(); this.classList.add('drop-target');"
+               ondragleave="this.classList.remove('drop-target');"
+               ondrop="event.preventDefault(); this.classList.remove('drop-target'); const stageId = event.dataTransfer.getData('application/x-vmli-stage'); if (stageId && stageId !== '${e.id}') reorderEtapaByDrag('${f.id}', stageId, '${e.id}');">
             <span class="etapa-cor" style="background:${e.cor}"></span>
             <span class="etapa-nome">${esc(e.nome)}</span>
             <span class="badge ${e.tipo==='ganho'?'badge-success':e.tipo==='perdido'?'badge-danger':'badge-gray'}">${e.tipo==='ganho'?'Ganho':e.tipo==='perdido'?'Perdido':'Em andamento'}</span>
@@ -4104,10 +4375,10 @@ async function saveUsuario(e) {
 }
 
 // Cria conta de login + profile preservando a sessão do admin (mesma lógica usada em Professores)
-async function createAuthUser({ name, email, role, valor_aula=0 }) {
+async function createAuthUser({ name, email, role, valor_aula=0, telefone=null, pix=null }) {
   const { data: adminSess } = await db.auth.getSession();
   const { data: nu, error: signErr } = await db.auth.signUp({
-    email, password: 'VMLI2024!', options: { data: { name, role, valor_aula } }
+    email, password: 'VMLI2024!', options: { data: { name, role, valor_aula, telefone, pix } }
   });
   if (signErr) throw signErr;
   if (adminSess?.session) {
@@ -4120,7 +4391,8 @@ async function createAuthUser({ name, email, role, valor_aula=0 }) {
   }
   if (nu?.user) {
     await new Promise(r => setTimeout(r, 1200));
-    await db.from('profiles').upsert({ id: nu.user.id, name, email, role, valor_aula, ativo: true });
+    const { error } = await db.from('profiles').upsert({ id: nu.user.id, name, email, role, valor_aula, telefone, pix, ativo: true });
+    if (error) throw error;
   }
   return nu?.user;
 }
@@ -4235,9 +4507,10 @@ async function signedUrl(path) {
 async function renderMembros() {
   if (!isAluno() && !can('membros_ver')) return semPermissao();
   const podeEd = can('membros_editar');
-  const [{ data: paineis, error }, { data: prog }] = await Promise.all([
+  const [{ data: paineis, error }, { data: prog }, { data: aluno }] = await Promise.all([
     db.from('paineis').select('*, painel_modulos(id, painel_aulas(id, categoria)), painel_acessos(id)').order('ordem').order('titulo'),
     db.from('aula_progresso').select('aula_id').eq('profile_id', user.id).eq('concluida', true),
+    isAluno() ? db.from('alunos').select('id,nivel,nivel_teste_em').eq('profile_id', user.id).maybeSingle() : Promise.resolve({ data:null }),
   ]);
   if (error) { setContent(`<div class="alert alert-warning">Erro: ${error.message}<br><span class="text-muted">Confira se os scripts <strong>03_area_membros.sql</strong> e <strong>05_area_aluno.sql</strong> foram executados.</span></div>`); return; }
   const feitas = new Set((prog||[]).map(p=>p.aula_id));
@@ -4261,7 +4534,7 @@ async function renderMembros() {
     ${isAluno() ? `<section class="student-library-overview">
       <p>Materiais de apoio e exercícios liberados pela escola, organizados para acompanhar seu aprendizado.</p>
       <div class="student-library-stats"><span><strong>${totalMateriais}</strong> ${totalMateriais===1?'material':'materiais'}</span><span><strong>${totalExercicios}</strong> ${totalExercicios===1?'exercício':'exercícios'}</span></div>
-    </section>` : ''}
+    </section>${membroTesteNivelHTML(aluno)}` : ''}
     <div class="card video-playlist-card">
       <div class="card-header">
         <h3>Vídeos de apoio</h3>
@@ -4754,23 +5027,133 @@ async function resetSenhaAluno(alunoId) {
   showToast(error ? 'Erro: '+error.message : `Email de redefinição enviado para ${a.email}`, error?'error':'success');
 }
 
+async function uploadFotoPerfil(file, inputId='profile-photo-input') {
+  if (!file || !user?.id) return;
+  const extensions = { 'image/png':'png', 'image/jpeg':'jpg', 'image/jpg':'jpg', 'image/webp':'webp' };
+  if (!extensions[file.type]) {
+    showToast('Selecione uma imagem em PNG, JPG ou WEBP.', 'error');
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    showToast('A foto deve ter no máximo 5 MB.', 'error');
+    return;
+  }
+
+  const input = document.getElementById(inputId);
+  if (input) input.disabled = true;
+  const path = `${user.id}/avatar.${extensions[file.type]}`;
+  try {
+    const { error } = await db.storage.from('profile-photos').upload(path, file, { upsert: true, contentType: file.type });
+    if (error) throw error;
+    const { data } = db.storage.from('profile-photos').getPublicUrl(path);
+    if (!data?.publicUrl) throw new Error('O Supabase não retornou o endereço da foto.');
+    const url = `${data.publicUrl}${data.publicUrl.includes('?')?'&':'?'}v=${Date.now()}`;
+    const [{ error: profileError }, { data: authData, error: authError }] = await Promise.all([
+      db.from('profiles').update({ avatar_url:url, foto_url:url }).eq('id', user.id),
+      db.auth.updateUser({ data:{ avatar_url:url } }),
+    ]);
+    if (profileError && authError) throw new Error(`A foto foi enviada, mas não foi possível salvar o perfil: ${profileError.message}`);
+
+    localStorage.setItem(`vmli-profile-photo-${user.id}`, url);
+    if (profile) profile.avatar_url = url;
+    if (authData?.user) user = authData.user;
+    showToast('Foto de perfil atualizada com sucesso.','success');
+    showApp();
+    showTab('minha-conta');
+  } catch (err) {
+    console.error('Falha ao enviar foto de perfil:', err);
+    const message = err?.message || 'Erro desconhecido';
+    showToast(/bucket|not found/i.test(message)
+      ? 'O armazenamento de fotos não está configurado. Execute 06_foto_perfil.sql no Supabase.'
+      : `Não foi possível enviar a foto: ${message}`, 'error');
+  } finally {
+    if (input?.isConnected) input.disabled = false;
+  }
+}
+
 // ---- Minha conta (aluno e equipe): trocar senha ----
 function renderMinhaConta() {
+  const initials = (profile?.name || user?.email || 'U').split(' ').filter(Boolean).map(part => part[0]).slice(0,2).join('').toUpperCase() || 'U';
+  const avatarHtml = renderUserAvatar(initials, 'account-avatar');
+
   setContent(`
-    <div class="page-header"><h2>Minha conta 👤</h2></div>
-    <div class="card"><div class="card-body">
-      <div class="info-grid" style="margin-bottom:20px">
-        <div class="info-item"><span class="info-label">Nome</span><span class="info-value">${esc(profile?.name)}</span></div>
-        <div class="info-item"><span class="info-label">Email</span><span class="info-value">${esc(profile?.email||user?.email)}</span></div>
-        <div class="info-item"><span class="info-label">Perfil</span><span class="info-value">${getRoleLabel(profile?.role)}</span></div>
-      </div>
-      <h3 style="margin:0 0 10px">🔑 Trocar senha</h3>
-      <form onsubmit="salvarNovaSenha(event)" style="max-width:420px">
-        <div class="form-group"><label>Nova senha *</label><input type="password" name="senha" minlength="6" required autocomplete="new-password"></div>
-        <div class="form-group"><label>Repita a nova senha *</label><input type="password" name="senha2" minlength="6" required autocomplete="new-password"></div>
-        <button type="submit" class="btn btn-primary">Salvar nova senha</button>
-      </form>
-    </div></div>`);
+    <div class="page-header">
+      <h2>Minha conta 👤</h2>
+    </div>
+
+    <div class="account-shell">
+      <section class="card account-summary-card">
+        <div class="account-profile-header">
+          ${avatarHtml}
+          <div class="account-profile-copy">
+            <span class="account-kicker">Dados da conta</span>
+            <h3>${esc(profile?.name || 'Usuário')}</h3>
+          </div>
+        </div>
+
+        <div class="account-photo-upload-row">
+          <label class="photo-upload-area" for="profile-photo-input">
+            <input id="profile-photo-input" type="file" accept="image/png,image/jpeg,image/webp,image/jpg" onchange="uploadFotoPerfil(this.files && this.files[0]); this.value='';">
+            <span>📷</span>
+            <span>Trocar foto de perfil</span>
+          </label>
+        </div>
+
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="info-label">Nome</span>
+            <span class="info-value">${esc(profile?.name || 'Não informado')}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Email</span>
+            <span class="info-value">${esc(profile?.email || user?.email || 'Não informado')}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Perfil</span>
+            <span class="info-value">${getRoleLabel(profile?.role)}</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card account-security-card">
+        ${profile?.role==='professor'?`<div class="card-header card-header-tight"><h3>Dados profissionais</h3></div>
+        <div class="card-body"><form class="account-password-form" onsubmit="salvarDadosProfessor(event)">
+          <div class="form-group"><label>Telefone *</label><input type="tel" name="telefone" value="${esc(profile?.telefone||'')}" required></div>
+          <div class="form-group"><label>Chave Pix *</label><input type="text" name="pix" value="${esc(profile?.pix||'')}" required></div>
+          <button class="btn btn-primary">Salvar dados profissionais</button>
+        </form></div>`:''}
+        <div class="card-header card-header-tight">
+          <h3>🔐 Segurança da conta</h3>
+        </div>
+        <div class="card-body account-security-body">
+          <p class="account-helper">Escolha uma senha forte e mantenha o acesso seguro.</p>
+          <form class="account-password-form" onsubmit="salvarNovaSenha(event)">
+            <div class="form-group">
+              <label>Nova senha *</label>
+              <input type="password" name="senha" minlength="6" required autocomplete="new-password" placeholder="Digite a nova senha">
+            </div>
+            <div class="form-group">
+              <label>Repita a nova senha *</label>
+              <input type="password" name="senha2" minlength="6" required autocomplete="new-password" placeholder="Confirme a nova senha">
+            </div>
+            <div class="account-password-actions">
+              <button type="submit" class="btn btn-primary">Salvar nova senha</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </div>
+  `);
+}
+async function salvarDadosProfessor(e){
+  e.preventDefault();
+  if (profile?.role!=='professor') return semPermissao();
+  const fd = new FormData(e.target);
+  const { data, error } = await db.from('profiles').update({ telefone:fd.get('telefone').trim(), pix:fd.get('pix').trim() })
+    .eq('id',user.id).select().single();
+  if (error) return showToast('Não foi possível salvar os dados profissionais: '+error.message,'error');
+  profile = { ...profile, ...data };
+  showToast('Dados profissionais atualizados.','success');
 }
 async function salvarNovaSenha(e) {
   e.preventDefault();
@@ -4779,4 +5162,559 @@ async function salvarNovaSenha(e) {
   const { error } = await db.auth.updateUser({ password: fd.get('senha') });
   if (error) { showToast('Erro: '+error.message,'error'); return; }
   showToast('Senha alterada com sucesso! ✅','success'); e.target.reset();
+}
+
+  /* ======================================================================
+   29. TESTE DE NIVELAMENTO (entrada + área de membros)
+   ====================================================================== */
+const TESTE_NIVELAMENTO_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSeuDkGW4W25jyc04lheGaDoa1KIrT1v6oYHHJC-Aw5voojrfw/viewform?usp=sharing';
+const NIVEIS = ['A1','A2','B1','B2','C1','C2'];
+
+function abrirTesteNivelamento(){ window.open(TESTE_NIVELAMENTO_URL, '_blank', 'noopener'); }
+
+function testeNivelamentoHTML(){
+  return `<div class="card" style="text-align:center;padding:20px">
+    <div style="font-size:36px">🎓</div>
+    <h3>Descubra seu nível de inglês</h3>
+    <p style="opacity:.8">Teste de nivelamento gratuito — leva cerca de 10 minutos.</p>
+    <button class="btn btn-primary" onclick="abrirTesteNivelamento()">Fazer o teste agora</button>
+  </div>`;
+}
+
+async function getAlunoLogado(){
+  if (!user?.id || !isAluno()) return null;
+  const { data, error } = await db.from('alunos').select('*').eq('profile_id', user.id).maybeSingle();
+  if (error) { showToast('Não foi possível localizar seu cadastro de aluno: '+error.message,'error'); return null; }
+  _D.alunoLogado = data;
+  return data;
+}
+
+async function registrarResultadoNivel(nivel){
+  if (!NIVEIS.includes(nivel)) return;
+  const aluno = await getAlunoLogado();
+  if (!aluno) return showToast('Não há cadastro de aluno vinculado a esta conta. Fale com a secretaria.','error');
+  const { error } = await db.rpc('vml_set_student_level',{ new_level:nivel });
+  if (error) return showToast('Não foi possível salvar seu nível: '+error.message,'error');
+  _D.alunoLogado = { ...aluno, nivel, nivel_teste_em:new Date().toISOString() };
+  showToast(`Nível ${nivel} salvo. Seus materiais foram atualizados.`,'success');
+  showTab('materiais-nivel');
+}
+
+function membroTesteNivelHTML(aluno){
+  return `<section class="card member-level-card"><div class="card-body">
+    <div><h3>Seu nível de inglês</h3><p>${aluno?.nivel_teste_em ? `Nível atual: <strong>${esc(aluno.nivel||'A1')}</strong>` : 'Faça o teste e informe o nível indicado ao final.'}</p></div>
+    <div class="member-level-actions"><a class="btn btn-secondary" href="${TESTE_NIVELAMENTO_URL}" target="_blank" rel="noopener">${aluno?.nivel_teste_em?'Refazer teste':'Fazer nivelamento'}</a>
+      <label class="member-level-select"><span>Resultado</span><select id="nivel-resultado"><option value="">Selecione</option>${NIVEIS.map(n=>`<option value="${n}" ${aluno?.nivel===n?'selected':''}>${n}</option>`).join('')}</select></label>
+      <button class="btn btn-primary" onclick="registrarResultadoNivel(document.getElementById('nivel-resultado')?.value)">Salvar nível</button>
+    </div>
+  </div></section>`;
+}
+
+/* ======================================================================
+   30. MATERIAIS POR NÍVEL (admin sobe; aluno só vê o nível dele)
+   ====================================================================== */
+async function renderMateriaisAdmin(){
+  if (!can('membros_editar')) return semPermissao();
+  const { data: mats = [], error } = await db.from('materiais').select('*').order('nivel').order('ordem');
+  if (error) return setContent(`<div class="alert alert-warning">Erro ao carregar materiais: ${esc(error.message)}. Execute schema-novas-tabelas.sql no Supabase.</div>`);
+  _D.materiais = Object.fromEntries(mats.map(item=>[item.id,item]));
+  setContent(`
+    <div class="page-header"><h2>Materiais por nível</h2><button class="btn btn-primary" onclick="openModalMaterial()">+ Novo material</button></div>
+    <div class="table-wrapper"><table class="table"><thead><tr>
+      <th>Título</th><th>Nível</th><th>Tipo</th><th>Acesso</th><th>Ações</th></tr></thead><tbody>
+      ${mats.map(m=>`<tr>
+        <td>${esc(m.titulo)}<br><small>${esc(m.descricao||'')}</small></td>
+        <td><b>${m.nivel}</b></td>
+        <td>${m.tipo==='arquivo'?'📄 Arquivo':m.tipo==='video'?'🎬 Vídeo':'🔗 Link'}</td>
+        <td>${m.storage_path?'<button class="btn btn-sm btn-secondary" onclick="abrirMaterialAdmin(\''+m.id+'\')">Abrir arquivo</button>':`<a href="${esc(m.url||'#')}" target="_blank" rel="noopener">Abrir link</a>`}</td>
+        <td>
+          <button class="btn btn-sm" onclick="openModalMaterial('${m.id}')">✏️</button>
+          <button class="btn btn-sm" onclick="excluirMaterial('${m.id}')">🗑️</button>
+        </td></tr>`).join('') || '<tr><td colspan="5">Nenhum material cadastrado.</td></tr>'}
+    </tbody></table></div>`);
+}
+
+async function openModalMaterial(id){
+  if (!can('membros_editar')) return semPermissao();
+  let mat = null;
+  if (id) mat = _D.materiais?.[id] || (await db.from('materiais').select('*').eq('id', id).single()).data;
+  openModal(`
+    <div class="modal-header"><h3>${id?'Editar material':'Novo material'}</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <form onsubmit="saveMaterial(event,${id?`'${id}'`:'null'})">
+      <label>Título</label><input name="titulo" required value="${esc(mat?.titulo||'')}">
+      <label>Nível</label>
+      <select name="nivel" required>${NIVEIS.map(n=>`<option value="${n}" ${mat?.nivel===n?'selected':''}>${n}</option>`).join('')}</select>
+      <label>Tipo</label>
+      <select name="tipo" onchange="document.getElementById('mat-file').hidden=this.value!=='arquivo';document.getElementById('mat-url').hidden=this.value==='arquivo'">
+        <option value="arquivo" ${mat?.tipo==='arquivo'?'selected':''}>Arquivo (PDF, imagem, etc.)</option>
+        <option value="video" ${mat?.tipo==='video'?'selected':''}>Vídeo (link)</option>
+        <option value="link" ${mat?.tipo==='link'?'selected':''}>Link externo</option>
+      </select>
+      <div id="mat-url" ${mat?.tipo==='arquivo'?'hidden':''}>
+        <label>URL (vídeo/link)</label><input type="url" name="url" value="${esc(mat?.url||'')}">
+      </div>
+      <div id="mat-file" ${mat?.tipo==='arquivo' || !mat?'':'hidden'}>
+        <label>Arquivo</label><input type="file" name="arquivo" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.mp3,.mp4">
+        ${mat?.storage_path?'<small>Um novo arquivo substitui o atual.</small>':''}
+      </div>
+      <label>Descrição</label><textarea name="descricao">${esc(mat?.descricao||'')}</textarea>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary">Salvar</button></div>
+    </form>`);
+}
+
+async function saveMaterial(e, id){
+  e.preventDefault();
+  if (!can('membros_editar')) return semPermissao();
+  const f = e.target, fd = new FormData(f);
+  const item = { titulo: fd.get('titulo').trim(), nivel: fd.get('nivel'), tipo: fd.get('tipo'),
+                 url: fd.get('url')||null, descricao: fd.get('descricao')||null, criado_por: user.id };
+  const file = f.querySelector('[name=arquivo]')?.files[0];
+  if (item.tipo==='arquivo' && !file && !id) return showToast('Selecione o arquivo para enviar.','error');
+  if (item.tipo!=='arquivo' && !item.url) return showToast('Informe o link do vídeo ou material.','error');
+  const old = id ? _D.materiais?.[id] : null;
+  if (file) {
+    if (file.size > 50 * 1024 * 1024) return showToast('O arquivo deve ter até 50 MB.','error');
+    const ext = file.name.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g,'');
+    const path = `${item.nivel}/${crypto.randomUUID()}${ext?'.'+ext:''}`;
+    const { error } = await db.storage.from('materiais-nivel').upload(path, file, { contentType:file.type||'application/octet-stream' });
+    if (error) return showToast('Erro no upload: '+error.message,'error');
+    item.storage_path = path;
+    item.url = null;
+  }
+  if (!file && old?.storage_path && item.tipo==='arquivo') item.storage_path = old.storage_path;
+  const { error } = id ? await db.from('materiais').update(item).eq('id', id)
+    : await db.from('materiais').insert(item);
+  if (error) return showToast('Erro ao salvar material: '+error.message,'error');
+  if (file && old?.storage_path) await db.storage.from('materiais-nivel').remove([old.storage_path]);
+  closeModal(); showToast('Material salvo.','success'); renderMateriaisAdmin();
+}
+
+async function excluirMaterial(id){
+  if (!can('membros_editar')) return semPermissao();
+  if (!confirm('Excluir este material?')) return;
+  const mat = _D.materiais?.[id];
+  const { error } = await db.from('materiais').delete().eq('id', id);
+  if (error) return showToast('Erro ao excluir: '+error.message,'error');
+  if (mat?.storage_path) await db.storage.from('materiais-nivel').remove([mat.storage_path]);
+  showToast('Material excluído.','success'); renderMateriaisAdmin();
+}
+
+async function abrirMaterialAdmin(id){
+  const mat = _D.materiais?.[id];
+  if (!mat?.storage_path) return;
+  const { data, error } = await db.storage.from('materiais-nivel').createSignedUrl(mat.storage_path,3600);
+  if (error) return showToast('Erro ao abrir arquivo: '+error.message,'error');
+  window.open(data.signedUrl,'_blank','noopener');
+}
+
+async function renderMateriaisAluno(){
+  const aluno = await getAlunoLogado();
+  if (!aluno) return setContent('<div class="empty-card">Seu cadastro ainda não está vinculado ao login. Fale com a secretaria.</div>');
+  const [{ data: mats = [], error }, { data: progresso = [] }] = await Promise.all([
+    db.from('materiais').select('*').eq('nivel', aluno.nivel||'A1').order('ordem').order('created_at'),
+    db.from('progresso_materiais').select('material_id').eq('aluno_id',aluno.id).eq('concluida',true),
+  ]);
+  if (error) return setContent(`<div class="alert alert-warning">Erro ao carregar materiais: ${esc(error.message)}.</div>`);
+  const feitos = new Set(progresso.map(p=>p.material_id));
+  const cards = await Promise.all(mats.map(async mat=>{
+    let url = mat.url;
+    if (mat.storage_path) {
+      const { data } = await db.storage.from('materiais-nivel').createSignedUrl(mat.storage_path,3600);
+      url = data?.signedUrl||'';
+    }
+    return `<article class="card level-material-card"><div class="card-body">
+      <span class="badge badge-info">${mat.tipo==='video'?'Vídeo':mat.tipo==='link'?'Link externo':'Arquivo'} · ${esc(mat.nivel)}</span>
+      <h3>${esc(mat.titulo)}</h3><p>${esc(mat.descricao||'')}</p>
+      ${url?`<a class="btn btn-primary" href="${esc(url)}" target="_blank" rel="noopener">${mat.tipo==='arquivo'?'Abrir material':'Assistir / abrir'}</a>`:'<p class="text-muted">Arquivo indisponível.</p>'}
+      <label class="level-material-done"><input type="checkbox" ${feitos.has(mat.id)?'checked':''} onchange="marcarMaterialConcluido('${mat.id}',this.checked)"> Concluído</label>
+    </div></article>`;
+  }));
+  setContent(`<div class="page-header"><h2>Meu nível e materiais</h2><span class="badge badge-info">${esc(aluno.nivel||'A1')}</span></div>
+    ${membroTesteNivelHTML(aluno)}<div class="paineis-grid level-material-grid">${cards.join('')||'<p class="empty-state">Ainda não há materiais disponíveis para seu nível.</p>'}</div>`);
+}
+
+async function marcarMaterialConcluido(materialId, concluida){
+  const aluno = await getAlunoLogado(); if (!aluno) return;
+  const result = concluida
+    ? await db.from('progresso_materiais').upsert({ aluno_id:aluno.id, material_id:materialId, concluida:true },{ onConflict:'aluno_id,material_id' })
+    : await db.from('progresso_materiais').delete().eq('aluno_id',aluno.id).eq('material_id',materialId);
+  if (result.error) showToast('Não foi possível salvar o progresso: '+result.error.message,'error');
+}
+
+/* ======================================================================
+   31. EXERCÍCIOS A1–C2 (estilo Duolingo) + PROGRESSO DO ALUNO
+   ====================================================================== */
+let quiz = { nivel:null, lista:[], i:0, acertos:0 };
+
+// ---- ALUNO ----
+async function renderExerciciosAluno(nivelSel){
+  const aluno = await getAlunoLogado();
+  if (!aluno) return setContent('<div class="empty-card">Seu cadastro ainda não está vinculado ao login. Fale com a secretaria.</div>');
+  const nivel = aluno.nivel || 'A1';
+  const [{ data: exs = [], error }, { data: prog = [] }] = await Promise.all([
+    db.from('exercicios').select('*').eq('nivel', nivel).order('ordem'),
+    db.from('progresso_exercicios').select('exercicio_id,acertou').eq('aluno_id', aluno.id),
+  ]);
+  if (error) return setContent(`<div class="alert alert-warning">Erro ao carregar exercícios: ${esc(error.message)}.</div>`);
+  const feito = new Map(prog.map(p=>[p.exercicio_id, p.acertou]));
+  quiz = { nivel, lista:exs, i:0, acertos:0, respostas:feito };
+  setContent(`<div class="page-header"><h2>Exercícios</h2><span class="badge badge-info">Nível ${esc(nivel)}</span></div>
+    <div class="card"><div class="card-body"><b>Seu progresso neste nível:</b>
+      <div class="progress"><div class="progress-bar" style="width:${exs.length?Math.round(prog.length/exs.length*100):0}%"></div><span>${exs.length?Math.round(prog.length/exs.length*100):0}%</span></div>
+      <small>${prog.length} de ${exs.length} exercícios respondidos · ${prog.filter(p=>p.acertou).length} corretos</small>
+    </div></div>
+    <div id="quiz-area" style="margin-top:16px">${exs.length?quizPerguntaHTML(exs[0]):'<div class="empty-card">Ainda não há exercícios para este nível.</div>'}</div>`);
+}
+
+function quizPerguntaHTML(ex){
+  const respondeu = quiz.respostas?.has(ex.id);
+  return `<div class="card quiz-card"><div class="card-body">
+    <small>${esc(ex.modulo)} · Exercício ${quiz.i+1}/${quiz.lista.length}</small>
+    <h3 style="margin:8px 0 16px">${esc(ex.enunciado)}</h3>
+    <div class="quiz-options">
+      ${(ex.opcoes||[]).map((op,index)=>`<button class="btn btn-secondary" ${respondeu?'disabled':''} onclick="quizResponder(${index})">${esc(op)}</button>`).join('')}
+    </div>
+    <div id="quiz-feedback" style="margin-top:12px">${respondeu?`<p>${quiz.respostas.get(ex.id)?'✅ Resposta correta já registrada.':'Resposta já registrada.'}</p><button class="btn btn-primary" onclick="quizProxima()">Continuar</button>`:''}</div>
+  </div></div>`;
+}
+
+async function quizResponder(opcaoIndex){
+  const ex = quiz.lista[quiz.i];
+  const resposta = ex.opcoes?.[opcaoIndex];
+  if (resposta === undefined) return;
+  const acertou = resposta === ex.resposta_correta;
+  if (acertou) quiz.acertos++;
+  const aluno = await getAlunoLogado();
+  const { error } = await db.from('progresso_exercicios').upsert(
+    { aluno_id: aluno.id, exercicio_id: ex.id, acertou, resposta_dada: resposta },
+    { onConflict: 'aluno_id,exercicio_id' });
+  if (error) return showToast('Erro ao salvar resposta: '+error.message,'error');
+  quiz.respostas.set(ex.id,acertou);
+  const fb = document.getElementById('quiz-feedback');
+  if (!fb) return;
+  fb.innerHTML = acertou
+    ? `<p class="text-success"><b>✅ Correto!</b> ${esc(ex.explicacao||'')}</p>
+       <button class="btn btn-primary" onclick="quizProxima()">Continuar →</button>`
+    : `<p class="text-danger"><b>❌ Resposta incorreta.</b> Correta: <b>${esc(ex.resposta_correta)}</b>. ${esc(ex.explicacao||'')}</p>
+       <button class="btn btn-primary" onclick="quizProxima()">Continuar →</button>`;
+  fb.closest('.card')?.querySelectorAll('.quiz-options button').forEach(button=>{ button.disabled=true; });
+}
+
+function quizProxima(){
+  quiz.i++;
+  const area = document.getElementById('quiz-area');
+  if (quiz.i >= quiz.lista.length){
+    area.innerHTML = `<div class="card" style="text-align:center">
+      <div style="font-size:40px">🏆</div>
+      <h3>Rodada concluída!</h3><p>Você acertou <b>${quiz.acertos}</b> de ${quiz.lista.length}.</p>
+      <button class="btn btn-primary" onclick="renderExerciciosAluno('${quiz.nivel}')">Praticar de novo</button>
+      <button class="btn" onclick="renderProgressoAluno()">Ver meu avanço</button></div>`;
+    return;
+  }
+  area.innerHTML = quizPerguntaHTML(quiz.lista[quiz.i]);
+}
+
+// ---- PROGRESSO (percentual de aulas/conteúdo + exercícios) ----
+async function renderProgressoAluno(){
+  const aluno = await getAlunoLogado(); if (!aluno) return;
+  const [{ data: paineis = [] }, { data: concluidas = [] }, { data: mats = [] }, { data: progMat = [] }, { data: exs = [] }, { data: progEx = [] }] = await Promise.all([
+    db.from('paineis').select('id,painel_modulos(painel_aulas(id))'),
+    db.from('aula_progresso').select('aula_id').eq('profile_id',user.id).eq('concluida',true),
+    db.from('materiais').select('id').eq('nivel',aluno.nivel||'A1'),
+    db.from('progresso_materiais').select('material_id').eq('aluno_id',aluno.id).eq('concluida',true),
+    db.from('exercicios').select('id').eq('nivel',aluno.nivel||'A1'),
+    db.from('progresso_exercicios').select('exercicio_id,acertou').eq('aluno_id',aluno.id),
+  ]);
+  const totalAulas = paineis.flatMap(p=>p.painel_modulos||[]).flatMap(m=>m.painel_aulas||[]).length;
+  const feitasAulas = Math.min(totalAulas,concluidas.length);
+  const feitasMateriais = Math.min(mats.length,progMat.length);
+  const exerciseIds = new Set(exs.map(item=>item.id));
+  const currentProgress = progEx.filter(item=>exerciseIds.has(item.exercicio_id));
+  const respondidos = Math.min(exs.length,currentProgress.length);
+  const corretos = currentProgress.filter(item=>item.acertou).length;
+  const pct = (done,total)=>total?Math.round(done/total*100):0;
+  const pctAulas=pct(feitasAulas,totalAulas), pctMateriais=pct(feitasMateriais,mats.length), pctEx=pct(respondidos,exs.length);
+  const total=totalAulas+mats.length+exs.length;
+  const overall=total?Math.round((feitasAulas+feitasMateriais+respondidos)/total):0;
+  setContent(`<div class="page-header"><h2>Meu progresso</h2><span class="badge badge-info">Nível ${esc(aluno.nivel||'A1')}</span></div>
+    ${progressoCard('Aulas e conteúdo da Área de Membros',feitasAulas,totalAulas,pctAulas)}
+    ${progressoCard('Materiais extras',feitasMateriais,mats.length,pctMateriais)}
+    ${progressoCard('Exercícios respondidos',respondidos,exs.length,pctEx)}
+    <section class="card progress-total"><div class="card-body"><strong>Conclusão geral</strong><span>${overall}%</span><div class="progress"><div class="progress-bar" style="width:${overall}%"></div></div><small>${corretos} exercício(s) corretos</small></div></section>`);
+}
+
+function progressoCard(label,done,total,percentage){
+  return `<section class="card progress-section"><div class="card-body"><div class="progress-heading"><strong>${esc(label)}</strong><span>${percentage}%</span></div><div class="progress"><div class="progress-bar" style="width:${percentage}%"></div></div><small>${done} de ${total}</small></div></section>`;
+}
+
+// ---- ADMIN: CRUD de exercícios ----
+async function renderExerciciosAdmin(){
+  if (!can('membros_editar')) return semPermissao();
+  const { data: exs = [], error } = await db.from('exercicios').select('*').order('nivel').order('ordem');
+  if (error) return setContent(`<div class="alert alert-warning">Erro ao carregar exercícios: ${esc(error.message)}.</div>`);
+  setContent(`<div class="page-header"><h2>Banco de exercícios A1–C2</h2><button class="btn btn-primary" onclick="openModalExercicio()">+ Novo exercício</button></div>
+    <table class="table" style="margin-top:12px"><thead><tr><th>Nível</th><th>Módulo</th><th>Enunciado</th><th>Correta</th><th>Ações</th></tr></thead><tbody>
+      ${exs.map(x=>`<tr><td><b>${esc(x.nivel)}</b></td><td>${esc(x.modulo)}</td>
+        <td>${esc(x.enunciado)}</td><td>${esc(x.resposta_correta)}</td>
+        <td><button class="btn btn-sm" onclick="openModalExercicio('${x.id}')">✏️</button>
+            <button class="btn btn-sm" onclick="excluirExercicio('${x.id}')">🗑️</button></td></tr>`).join('')}
+    </tbody></table>`);
+}
+
+async function openModalExercicio(id){
+  if (!can('membros_editar')) return semPermissao();
+  let ex = null;
+  if (id) ex = (await db.from('exercicios').select('*').eq('id', id).single()).data;
+  openModal(`<div class="modal-header"><h3>${id?'Editar exercício':'Novo exercício'}</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <form onsubmit="saveExercicio(event,${id?`'${id}'`:'null'})" class="form-pad">
+      <label>Nível</label><select name="nivel">${NIVEIS.map(n=>`<option ${ex?.nivel===n?'selected':''}>${n}</option>`).join('')}</select>
+      <label>Módulo</label><input name="modulo" required value="${esc(ex?.modulo||'')}">
+      <label>Enunciado</label><textarea name="enunciado" required>${esc(ex?.enunciado||'')}</textarea>
+      <label>Opções (separe por |)</label><input name="opcoes" value="${esc((ex?.opcoes||[]).join('|'))}">
+      <label>Resposta correta</label><input name="correta" required value="${esc(ex?.resposta_correta||'')}">
+      <label>Explicação da resposta</label><input name="explicacao" value="${esc(ex?.explicacao||'')}">
+      <button class="btn btn-primary">Salvar</button>
+    </form>`);
+}
+
+async function saveExercicio(e, id){
+  e.preventDefault(); if (!can('membros_editar')) return semPermissao();
+  const fd = new FormData(e.target);
+  const item = { nivel: fd.get('nivel'), modulo: fd.get('modulo'), enunciado: fd.get('enunciado'),
+    opcoes: fd.get('opcoes').split('|').map(s=>s.trim()).filter(Boolean),
+    resposta_correta: fd.get('correta'), explicacao: fd.get('explicacao') };
+  if (item.opcoes.length && !item.opcoes.includes(item.resposta_correta)) return showToast('A resposta correta precisa estar entre as opções.','error');
+  const { error } = id ? await db.from('exercicios').update(item).eq('id', id) : await db.from('exercicios').insert(item);
+  if (error) return showToast('Erro ao salvar exercício: '+error.message,'error');
+  closeModal(); showToast('Exercício salvo.','success'); renderExerciciosAdmin();
+}
+
+async function excluirExercicio(id){
+  if (!can('membros_editar')) return semPermissao();
+  if (!confirm('Excluir exercício?')) return;
+  const { error } = await db.from('exercicios').delete().eq('id', id);
+  if (error) return showToast('Erro ao excluir exercício: '+error.message,'error');
+  showToast('Exercício excluído.','success'); renderExerciciosAdmin();
+}
+
+/* ======================================================================
+   32. PAGAMENTOS DO ALUNO — contrato, parcelas, adiantar + planilha
+   ====================================================================== */
+const PLANILHA_WEBHOOK = '';
+
+async function renderPagamentosAluno(){
+  const aluno = await getAlunoLogado();
+  if (!aluno) return setContent('<div class="empty-card">Seu cadastro ainda não está vinculado ao login. Fale com a secretaria.</div>');
+  const [{ data: parcelas = [], error }, { data: pedidos = [], error: pedidosError }] = await Promise.all([
+    db.from('parcelas').select('*').eq('aluno_id',aluno.id).order('numero'),
+    db.from('solicitacoes_adiantamento').select('id,parcela_id,status,created_at').eq('aluno_id',aluno.id).order('created_at',{ascending:false}),
+  ]);
+  if (error) return setContent(`<div class="alert alert-warning">Erro ao carregar parcelas: ${esc(error.message)}.</div>`);
+  if (pedidosError) return setContent(`<div class="alert alert-warning">Erro ao carregar solicitações: ${esc(pedidosError.message)}.</div>`);
+  const pagas = parcelas.filter(p=>p.status==='pago').length;
+  const proxima = parcelas.find(p=>['pendente','atrasada'].includes(parcelaEstado(p)));
+  setContent(`<div class="page-header"><h2>Meus pagamentos</h2></div>
+    ${aluno.contrato_url ? `<section class="card contract-card"><div class="card-body"><div><strong>Contrato do curso</strong><p>Consulte o documento da sua matrícula.</p></div><a class="btn btn-secondary" href="${esc(aluno.contrato_url)}" target="_blank" rel="noopener">Abrir contrato ↗</a></div></section>` : '<div class="alert alert-info">Seu contrato ainda não foi anexado. Fale com a secretaria.</div>'}
+    <section class="card payment-summary"><div class="card-body"><span><small>Parcelas no plano</small><strong>${parcelas.length}</strong></span><span><small>Parcelas pagas</small><strong>${pagas}/${parcelas.length}</strong></span><span><small>Próximo vencimento</small><strong>${proxima ? `#${proxima.numero} · ${formatDate(proxima.vencimento)}` : 'Sem pendências'}</strong></span></div></section>
+    <div class="table-wrapper"><table class="table"><thead><tr><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Status</th><th>Ação</th></tr></thead><tbody>
+      ${parcelas.map(p=>{
+        const pedido = pedidos.find(item=>item.parcela_id===p.id&&item.status==='pendente');
+        return `<tr><td>${p.numero}</td><td>${formatDate(p.vencimento)}</td><td>${formatCurrency(valorLiquido(p))}</td><td>${parcelaBadge(p)}</td><td>${['pendente','atrasada'].includes(parcelaEstado(p))
+          ? pedido ? '<span class="badge badge-warning">Adiantamento solicitado</span>' : `<button class="btn btn-primary btn-sm" onclick="adiantarPagamento('${p.id}')">Solicitar adiantamento</button>` : '—'}</td></tr>`;
+      }).join('') || '<tr><td colspan="5">Nenhuma parcela cadastrada.</td></tr>'}
+    </tbody></table></div>
+    ${pedidos.length?`<section class="card payment-requests"><div class="card-header"><h3>Minhas solicitações</h3></div><div class="card-body">${pedidos.map(p=>`<p>Parcela #${parcelas.find(item=>item.id===p.parcela_id)?.numero||'—'} · ${formatDateTime(p.created_at)} · <span class="badge ${p.status==='pendente'?'badge-warning':'badge-info'}">${esc(p.status)}</span></p>`).join('')}</div></section>`:''}`);
+}
+
+async function adiantarPagamento(parcelaId){
+  openModal(`<div class="modal-header"><h3>Solicitar adiantamento</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <form onsubmit="confirmarAdiantamento(event,'${parcelaId}')" class="form-pad">
+      <p>Isso avisa a secretaria que você deseja antecipar esta parcela. O pagamento só será confirmado após conferência.</p>
+      <label>Forma prevista</label><select name="forma"><option>PIX</option><option>Cartão</option><option>Boleto</option><option>Transferência</option></select>
+      <label>Observação</label><input name="obs" maxlength="300">
+      <button class="btn btn-primary">Enviar solicitação</button>
+    </form>`);
+}
+
+async function confirmarAdiantamento(e, parcelaId){
+  e.preventDefault();
+  const aluno = await getAlunoLogado(); if (!aluno) return;
+  const fd = new FormData(e.target);
+  const { data: parcela, error: parcelaError } = await db.from('parcelas').select('*').eq('id',parcelaId).eq('aluno_id',aluno.id).single();
+  if (parcelaError || !parcela || !['pendente','atrasada'].includes(parcelaEstado(parcela))) return showToast('Esta parcela não está disponível para adiantamento.','error');
+  const { error } = await db.from('solicitacoes_adiantamento').insert({
+    aluno_id:aluno.id, parcela_id:parcela.id, solicitante_profile_id:user.id,
+    forma:fd.get('forma'), observacao:fd.get('obs')||null,
+  });
+  if (error) return showToast('Não foi possível registrar: '+error.message,'error');
+  const sheetSent = await syncParcelaPlanilha({ evento:'adiantamento_solicitado', aluno_id:aluno.id, aluno:aluno.nome,
+    parcela_id:parcela.id, parcela:parcela.numero, vencimento:parcela.vencimento,
+    valor:valorLiquido(parcela), forma:fd.get('forma'), observacao:fd.get('obs')||'', created_at:new Date().toISOString() });
+  closeModal();
+  showToast(sheetSent?'Solicitação enviada e encaminhada à planilha.':'Solicitação registrada. A integração com a planilha ainda precisa ser configurada.',sheetSent?'success':'info');
+  renderPagamentosAluno();
+}
+
+async function renderAdiantamentos(){
+  if (!can('pagamentos_ver')) return semPermissao();
+  const { data: pedidos = [], error } = await db.from('solicitacoes_adiantamento')
+    .select('*,alunos(nome,email),parcelas(numero,vencimento,valor),profiles!solicitacoes_adiantamento_solicitante_profile_id_fkey(name)')
+    .order('created_at',{ascending:false});
+  if (error) return setContent(`<div class="alert alert-warning">Erro ao carregar solicitações: ${esc(error.message)}.</div>`);
+  setContent(`<div class="page-header"><h2>Pedidos de adiantamento</h2></div>
+    <div class="table-wrapper"><table class="table"><thead><tr><th>Aluno</th><th>Parcela</th><th>Forma</th><th>Solicitado</th><th>Status</th><th>Ação</th></tr></thead><tbody>
+    ${pedidos.map(p=>`<tr><td>${esc(p.alunos?.nome||'Aluno')}</td><td>#${p.parcelas?.numero||'—'} · ${formatDate(p.parcelas?.vencimento)}</td><td>${esc(p.forma||'—')}</td><td>${formatDateTime(p.created_at)}</td><td><span class="badge ${p.status==='pendente'?'badge-warning':'badge-info'}">${esc(p.status)}</span></td><td>${p.status==='pendente'&&can('pagamentos_editar')?`<button class="btn btn-sm btn-primary" onclick="resolverAdiantamento('${p.id}')">Revisado</button>`:'—'}</td></tr>`).join('')||'<tr><td colspan="6">Nenhuma solicitação.</td></tr>'}
+    </tbody></table></div><p class="hint">Marque como revisado somente depois de conferir e registrar o pagamento na ficha do aluno.</p>`);
+}
+
+async function resolverAdiantamento(id){
+  if (!can('pagamentos_editar')) return semPermissao();
+  const { error } = await db.from('solicitacoes_adiantamento').update({ status:'revisado', revisado_por:user.id, revisado_em:new Date().toISOString() }).eq('id',id);
+  if (error) return showToast('Erro ao atualizar solicitação: '+error.message,'error');
+  showToast('Solicitação marcada como revisada.','success'); renderAdiantamentos();
+}
+
+async function syncParcelaPlanilha(data){
+  if (!/^https:\/\//i.test(PLANILHA_WEBHOOK)) return false;
+  try {
+    await fetch(PLANILHA_WEBHOOK,{ method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(data) });
+    return true;
+  } catch (error) {
+    console.error('Falha ao enviar evento para a planilha:',error);
+    return false;
+  }
+}
+
+function googleCalendarEventUrl(event, turma){
+  const timeStart = String(event.hora_inicio||'09:00').slice(0,5);
+  const timeEnd = String(event.hora_fim||'').slice(0,5) || (()=>{
+    const [hour,minute] = timeStart.split(':').map(Number);
+    const date = new Date(2000,0,1,hour,minute+60);
+    return `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
+  })();
+  const fmt = value => value.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
+  const start = fmt(new Date(`${event.data}T${timeStart}:00`));
+  const end = fmt(new Date(`${event.data}T${timeEnd}:00`));
+  const params = new URLSearchParams({ action:'TEMPLATE', text:`Aula VMLI — ${turma?.codigo||turma?.nome||'Aula'}`, dates:`${start}/${end}`, details:[event.observacao||'',event.link_aula||turma?.meet_link||''].filter(Boolean).join('\n') });
+  return `https://calendar.google.com/calendar/render?${params}`;
+}
+
+async function renderAgenda(){
+  const studentMode = isAluno();
+  if (!studentMode && !['professor','admin','secretaria'].includes(profile?.role)) return semPermissao();
+  const { mes, ano } = getCurrentMonthYear();
+  const firstDay = monthStart(mes,ano);
+  const nextDate = new Date(ano,mes,1);
+  const lastDay = monthEnd(nextDate.getMonth()+1 || 12,nextDate.getFullYear());
+  let turmaIds = [];
+  let turmas = [];
+
+  if (studentMode) {
+    const aluno = await getAlunoLogado();
+    if (!aluno) return setContent('<div class="empty-card">Seu cadastro ainda não está vinculado ao login. Fale com a secretaria.</div>');
+    const { data: vinculos = [], error } = await db.from('turma_alunos').select('turma_id,turmas(id,codigo,nome,meet_link,professor_id,profiles!turmas_professor_id_fkey(name))')
+      .eq('aluno_id',aluno.id).eq('status','active');
+    if (error) return setContent(`<div class="alert alert-warning">Erro ao carregar suas turmas: ${esc(error.message)}.</div>`);
+    turmas = vinculos.map(item=>item.turmas).filter(Boolean);
+    turmaIds = turmas.map(t=>t.id);
+    if (!turmaIds.length) return setContent('<div class="empty-card">Você ainda não está vinculado a uma turma ativa.</div>');
+  } else {
+    let turmaQuery = db.from('turmas').select('id,codigo,nome,horario,meet_link,professor_id,profiles!turmas_professor_id_fkey(name)').eq('status','active').order('codigo');
+    if (profile?.role==='professor') turmaQuery = turmaQuery.eq('professor_id',user.id);
+    const { data = [], error } = await turmaQuery;
+    if (error) return setContent(`<div class="alert alert-warning">Erro ao carregar turmas: ${esc(error.message)}.</div>`);
+    turmas = data; turmaIds = data.map(t=>t.id);
+  }
+  _D.agendaTurmas = turmas;
+  const { data: professores = [] } = studentMode ? { data:[] } : await db.from('profiles').select('id,name,valor_aula').eq('role','professor').eq('ativo',true).order('name');
+  _D.agendaProfessores = professores;
+
+  let eventQuery = db.from('agenda_professor').select('*,turmas!agenda_professor_turma_id_fkey(id,codigo,nome,meet_link),profiles!agenda_professor_professor_id_fkey(name,valor_aula)')
+    .gte('data',firstDay).lte('data',lastDay).order('data').order('hora_inicio');
+  if (studentMode) eventQuery = eventQuery.in('turma_id',turmaIds);
+  else if (profile?.role==='professor') eventQuery = eventQuery.eq('professor_id',user.id);
+  const { data: events = [], error } = await eventQuery;
+  if (error) return setContent(`<div class="alert alert-warning">Erro ao carregar agenda: ${esc(error.message)}. Execute schema-novas-tabelas.sql.</div>`);
+  const { data: checkins = [] } = studentMode && events.length
+    ? await db.from('chamadas_link').select('agenda_id').in('agenda_id',events.map(event=>event.id))
+    : { data:[] };
+  const checkedIn = new Set(checkins.map(item=>item.agenda_id));
+  _D.agenda = Object.fromEntries(events.map(event=>[event.id,event]));
+  const completed = events.filter(event=>event.aula_dada&&event.data>=firstDay&&event.data<=monthEnd(mes,ano));
+  const canManage = !studentMode && profile?.role!=='professor' ? ['admin','secretaria'].includes(profile?.role) : profile?.role==='professor';
+
+  setContent(`<div class="page-header"><div><h2>${studentMode?'Minha agenda':'Agenda e aulas'}</h2><p class="text-muted">${MONTHS[mes]} ${ano}</p></div>${canManage?'<button class="btn btn-primary" onclick="openModalAgenda(null)">+ Agendar aula</button>':''}</div>
+    ${!studentMode?`<section class="card agenda-month-summary"><div class="card-body"><span><strong>${completed.length}</strong> aulas dadas no mês</span>${profile?.role==='admin'||profile?.role==='secretaria'?`<a class="btn btn-sm btn-secondary" href="#" onclick="showTab('financeiro');return false">Abrir cálculo de pagamento</a>`:''}</div></section>`:''}
+    <div class="agenda-list">${events.map(event=>{
+      const turma = event.turmas||turmas.find(item=>item.id===event.turma_id);
+      const link = event.link_aula||turma?.meet_link||'';
+      const calendarUrl = googleCalendarEventUrl(event,turma);
+      const canCheckIn = isAgendaCheckinOpen(event);
+      return `<article class="card agenda-item"><div class="card-body">
+        <div class="agenda-date"><strong>${formatDate(event.data)}</strong><span>${String(event.hora_inicio||'').slice(0,5)}${event.hora_fim?' – '+String(event.hora_fim).slice(0,5):''}</span></div>
+        <div class="agenda-details"><h3>${esc(turma?.codigo||turma?.nome||'Aula')}</h3><p>${studentMode?'Professor: '+esc(event.profiles?.name||turma?.profiles?.name||'—'):'Aluno(s) da turma'}${!studentMode&&profile?.role!=='professor'?' · '+esc(event.profiles?.name||''):''}</p>${event.observacao?`<small>${esc(event.observacao)}</small>`:''}</div>
+        <div class="agenda-actions">${studentMode?`${link?(checkedIn.has(event.id)?'<span class="badge badge-success">Check-in registrado</span>':canCheckIn?`<button class="btn btn-primary btn-sm" data-link="${esc(link)}" onclick="entrarAula('${event.id}',this.dataset.link)">Entrar na aula</button>`:'<span class="text-muted">Check-in abre 30 min antes</span>'):'<span class="text-muted">Link não informado</span>'}<a class="btn btn-sm btn-secondary" href="${esc(calendarUrl)}" target="_blank" rel="noopener">Google Calendar</a>`:`<a class="btn btn-sm btn-secondary" href="${esc(calendarUrl)}" target="_blank" rel="noopener">Google Calendar</a>${profile?.role==='professor'&&!event.aula_dada?`<button class="btn btn-sm btn-success" onclick="marcarAgendaDada('${event.id}')">Marcar aula dada</button>`:''}${event.aula_dada?'<span class="badge badge-success">Aula dada</span>':''}`}
+        </div>
+      </div></article>`;
+    }).join('')||'<div class="empty-card">Nenhuma aula prevista para este período.</div>'}</div>`);
+}
+
+function isAgendaCheckinOpen(event){
+  if (!event?.data || event.data!==todayISO() || !event.hora_inicio) return false;
+  const start = new Date(`${event.data}T${String(event.hora_inicio).slice(0,8)}`);
+  const end = event.hora_fim
+    ? new Date(`${event.data}T${String(event.hora_fim).slice(0,8)}`)
+    : new Date(start.getTime()+90*60*1000);
+  const now = Date.now();
+  return now>=start.getTime()-30*60*1000 && now<=end.getTime()+30*60*1000;
+}
+
+function openModalAgenda(id){
+  const event = id ? _D.agenda?.[id] : null;
+  const turmas = _D.agendaTurmas||[];
+  if (!turmas.length) return showToast('Cadastre uma turma ativa antes de agendar.','error');
+  const canChooseTeacher = ['admin','secretaria'].includes(profile?.role);
+  const selectedTurma = turmas.find(t=>t.id===(event?.turma_id||turmas[0].id));
+  const professorId = event?.professor_id||selectedTurma?.professor_id||user.id;
+  openModal(`<div class="modal-header"><h3>${event?'Editar aula':'Agendar aula'}</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <form class="form-pad" onsubmit="saveAgenda(event,${event?`'${event.id}'`:'null'})">
+      <label>Turma *</label><select name="turma_id" required>${turmas.map(t=>`<option value="${t.id}" ${t.id===(event?.turma_id||selectedTurma?.id)?'selected':''}>${esc(t.codigo)}${t.nome?' — '+esc(t.nome):''}</option>`).join('')}</select>
+      ${canChooseTeacher?`<label>Professor *</label><select name="professor_id" required>${(_D.agendaProfessores||[]).map(p=>`<option value="${p.id}" ${p.id===professorId?'selected':''}>${esc(p.name)}</option>`).join('')}</select>`:`<input type="hidden" name="professor_id" value="${user.id}">`}
+      <div class="form-row"><div class="form-group"><label>Data *</label><input type="date" name="data" value="${event?.data||todayISO()}" required></div><div class="form-group"><label>Início *</label><input type="time" name="hora_inicio" value="${String(event?.hora_inicio||'09:00').slice(0,5)}" required></div><div class="form-group"><label>Fim</label><input type="time" name="hora_fim" value="${String(event?.hora_fim||'').slice(0,5)}"></div></div>
+      <label>Link da aula</label><input type="url" name="link_aula" value="${esc(event?.link_aula||selectedTurma?.meet_link||'')}" placeholder="https://meet.google.com/...">
+      <label>Observações</label><textarea name="observacao" rows="2">${esc(event?.observacao||'')}</textarea>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary">Salvar agenda</button></div>
+    </form>`);
+}
+
+async function saveAgenda(e,id){
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const row = { turma_id:fd.get('turma_id'), professor_id:profile?.role==='professor'?user.id:fd.get('professor_id'),
+    data:fd.get('data'), hora_inicio:fd.get('hora_inicio'), hora_fim:fd.get('hora_fim')||null,
+    link_aula:fd.get('link_aula')||null, observacao:fd.get('observacao')||null };
+  if (row.hora_fim && row.hora_fim<=row.hora_inicio) return showToast('O horário final precisa ser depois do início.','error');
+  const { error } = id ? await db.from('agenda_professor').update(row).eq('id',id) : await db.from('agenda_professor').insert(row);
+  if (error) return showToast('Não foi possível salvar a aula: '+error.message,'error');
+  closeModal(); showToast('Aula adicionada à agenda.','success'); renderAgenda();
+}
+
+async function entrarAula(agendaId,link){
+  const aluno = await getAlunoLogado();
+  if (!aluno) return;
+  const target = /^https:\/\//i.test(link)?link:'';
+  if (!target) return showToast('O link desta aula não é válido.','error');
+  const tab = window.open('about:blank','_blank');
+  const { error } = await db.from('chamadas_link').upsert({ agenda_id:agendaId, aluno_id:aluno.id, clicado_em:new Date().toISOString() },{ onConflict:'agenda_id,aluno_id' });
+  if (error) { tab?.close(); return showToast('Check-in indisponível fora do horário da aula ou sem vínculo ativo com a turma.','error'); }
+  if (tab) tab.location.replace(target); else showToast('Permita pop-ups para abrir o link da aula.','info');
+}
+
+async function marcarAgendaDada(id){
+  if (profile?.role!=='professor') return semPermissao();
+  if (!confirm('Confirmar que esta aula aconteceu? Isso atualiza a contagem mensal e registra a presença de quem fez check-in.')) return;
+  const { data, error } = await db.rpc('vml_complete_agenda',{ target_agenda_id:id });
+  if (error) return showToast('Não foi possível registrar a aula: '+error.message,'error');
+  showToast('Aula registrada e presenças do check-in atualizadas.','success');
+  renderAgenda();
 }

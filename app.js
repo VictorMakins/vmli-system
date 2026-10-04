@@ -260,11 +260,17 @@ async function handleRegister(e) {
   e.preventDefault();
   setRegisterFeedback('');
   const name = document.getElementById('register-name').value.trim();
+  const usernameInput = document.getElementById('register-username');
+  const username = usernameInput.value.trim().toLowerCase();
+  usernameInput.value = username;
   const email = document.getElementById('register-email').value.trim();
   const password = document.getElementById('register-password').value;
   const confirmation = document.getElementById('register-password-confirm').value;
   const button = document.getElementById('register-btn');
 
+  if (!/^[a-z0-9._]{3,30}$/.test(username)) {
+    return setRegisterFeedback('O nome de usuário deve ter de 3 a 30 letras, números, pontos ou sublinhados.', 'error');
+  }
   if (password.length < 8) return setRegisterFeedback('A senha deve ter pelo menos 8 caracteres.', 'error');
   if (password !== confirmation) return setRegisterFeedback('As senhas não conferem.', 'error');
 
@@ -274,7 +280,7 @@ async function handleRegister(e) {
     const { data, error } = await db.auth.signUp({
       email,
       password,
-      options: { data: { name } }
+      options: { data: { name, username } }
     });
     if (error) throw error;
     if (data.user?.identities?.length === 0) {
@@ -302,6 +308,7 @@ async function handleRegister(e) {
     const detail = String(error?.message||'Erro desconhecido');
     let message = `Não foi possível criar a conta: ${detail}`;
     if (/already|registered/i.test(detail)) message = 'Este email já possui uma conta. Tente entrar ou recuperar a senha.';
+    else if (/profiles_username_lower_uidx|username.*(unique|duplicate|already)|nome de usuário.*(repetido|em uso)/i.test(detail)) message = 'Este nome de usuário já está em uso. Escolha outro.';
     else if (/database error saving new user|handle_new_user_profile|profiles/i.test(detail)) message = `O Supabase recusou a criação do perfil do aluno: ${detail}. Confira se 04_cadastro_publico.sql foi executado no projeto correto.`;
     else if (/rate limit|email rate/i.test(detail)) message = 'O limite de envio de emails foi atingido. Aguarde alguns minutos e tente novamente.';
     setRegisterFeedback(message,'error');

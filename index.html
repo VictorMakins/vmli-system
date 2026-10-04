@@ -55,6 +55,11 @@
             <input type="text" id="register-name" required autocomplete="name">
           </div>
           <div class="form-group">
+            <label for="register-username">Nome de usuário</label>
+            <input type="text" id="register-username" required minlength="3" maxlength="30" pattern="[A-Za-z0-9._]{3,30}" autocomplete="username" autocapitalize="none" spellcheck="false" aria-describedby="register-username-hint">
+            <span class="hint" id="register-username-hint">3 a 30 letras, números, pontos ou sublinhados. O login continua sendo pelo email.</span>
+          </div>
+          <div class="form-group">
             <label for="register-email">Email</label>
             <input type="email" id="register-email" required autocomplete="email">
           </div>
@@ -159,6 +164,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="app.js?v=20261003-4"></script>
+  <script src="app.js?v=20261003-5"></script>
 </body>
 </html>

@@ -16,7 +16,7 @@ Se a aba mostrar um erro informando que falta uma tabela, abra o projeto no Supa
 
 ## Cadastro e recuperação de conta
 
-Para ativar o cadastro público, execute [`04_cadastro_publico.sql`](04_cadastro_publico.sql) no **SQL Editor** do Supabase. O gatilho cria automaticamente um perfil com papel de aluno; permissões administrativas continuam disponíveis apenas pelo cadastro feito por um administrador.
+Para ativar o cadastro público, execute [`04_cadastro_publico.sql`](04_cadastro_publico.sql) no **SQL Editor** do projeto Supabase usado pelo app. O script adiciona nomes de usuário únicos ao perfil e recria o gatilho que cria automaticamente um perfil com papel de aluno. O cadastro pede nome, nome de usuário, email e senha; o login continua sendo pelo email. Perfis administrativos continuam disponíveis apenas pelo cadastro feito por um administrador.
 
 Depois de executar `03_area_membros.sql` e `04_cadastro_publico.sql`, execute [`05_area_aluno.sql`](05_area_aluno.sql). Ele separa materiais de exercícios e vincula o login confirmado ao cadastro escolar quando existe uma única correspondência de email. Emails repetidos não são vinculados automaticamente; nesses casos, a secretaria deve conferir o cadastro.
 
